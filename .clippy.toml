@@ -3,7 +3,7 @@
 
 # Disallow certain warnings
 disallowed-methods = [
-    "unwrap",
+    { name = "unwrap", allow-invalid = true },
 ]
 
 # Minimum Supported Rust Version

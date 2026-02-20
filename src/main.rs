@@ -1,4 +1,4 @@
-use axum::{http::StatusCode, response::Json, routing::get, Router};
+use axum::{Router, http::StatusCode, response::Json, routing::get};
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
@@ -14,7 +14,7 @@ async fn health_check() -> (StatusCode, Json<HealthResponse>) {
     (
         StatusCode::OK,
         Json(HealthResponse {
-            status: "ok".to_string(),
+            status: "healthy".to_string(),
             message: "Yomu Engine is running".to_string(),
         }),
     )
