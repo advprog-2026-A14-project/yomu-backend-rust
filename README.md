@@ -1,6 +1,4 @@
-# Yomu Engine Rust
-
-Clean Architecture + Hexagonal Architecture + DDD + SOLID backend service for Yomu.
+# Yomu Backend Rust
 
 ## Project Structure
 
