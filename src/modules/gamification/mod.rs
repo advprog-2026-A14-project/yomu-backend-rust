@@ -37,7 +37,7 @@ async fn get_achievement(
 ) -> Result<Json<UserAchievementRes>, StatusCode> {
     // ambil data user
     // password buat tes di postman aja
-    let user = sqlx::query!("SELECT id, username, email, password FROM users WHERE id = $1", user_id)
+    let user = sqlx::query!("SELECT id, username, email, password FROM users_achievements_dummy WHERE id = $1", user_id)
         .fetch_optional(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -48,7 +48,7 @@ async fn get_achievement(
     };
 
     // ambil daftar achievement user tersebut
-    let records = sqlx::query!("SELECT achievement_type FROM achievements WHERE user_id = $1", user_id)
+    let records = sqlx::query!("SELECT achievement_type FROM achievements_dummy WHERE user_id = $1", user_id)
         .fetch_all(&pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -70,13 +70,13 @@ async fn update_achievement(
     Json(payload): Json<UpdateAchievementReq>,
 ) -> StatusCode {
     if let Some(username) = &payload.username {
-        let _ = sqlx::query!("UPDATE users SET username = $1 WHERE id = $2", username, user_id).execute(&pool).await;
+        let _ = sqlx::query!("UPDATE users_achievements_dummy SET username = $1 WHERE id = $2", username, user_id).execute(&pool).await;
     }
     if let Some(email) = &payload.email {
-        let _ = sqlx::query!("UPDATE users SET email = $1 WHERE id = $2", email, user_id).execute(&pool).await;
+        let _ = sqlx::query!("UPDATE users_achievements_dummy SET email = $1 WHERE id = $2", email, user_id).execute(&pool).await;
     }
     if let Some(password) = &payload.password {
-        let _ = sqlx::query!("UPDATE users SET password = $1 WHERE id = $2", password, user_id).execute(&pool).await;
+        let _ = sqlx::query!("UPDATE users_achievements_dummy SET password = $1 WHERE id = $2", password, user_id).execute(&pool).await;
     }
 
     let insert_achievement = |ach_type: &str| {
@@ -84,7 +84,7 @@ async fn update_achievement(
         let ach_type = ach_type.to_string();
         async move {
             match sqlx::query!(
-                "INSERT INTO achievements (user_id, achievement_type) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                "INSERT INTO achievements_dummy (user_id, achievement_type) VALUES ($1, $2) ON CONFLICT DO NOTHING",
                 user_id, ach_type
             ).execute(&pool).await {
                 Ok(_) => println!("Sukses menambah achievement: {}", ach_type),
@@ -94,7 +94,7 @@ async fn update_achievement(
     };
 
     // ambil data user terbaru untuk mengecek kelengkapannya
-    let current_user = sqlx::query!("SELECT username, email, password FROM users WHERE id = $1", user_id)
+    let current_user = sqlx::query!("SELECT username, email, password FROM users_achievements_dummy WHERE id = $1", user_id)
         .fetch_one(&pool)
         .await;
 
