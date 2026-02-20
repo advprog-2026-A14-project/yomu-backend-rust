@@ -26,37 +26,11 @@ struct UserAchievementRes {
     achievements: Vec<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), sqlx::Error> {
-    dotenvy::dotenv().ok(); 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL tidak ditemukan");
-
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await?;
-
-    println!("Berhasil terhubung ke database");
-
-    let app = Router::new()
-        .route("/api/achievement/:id", get(get_achievement))
-        .route("/api/achievement/:id/update", post(update_achievement))
-        .with_state(pool);
-
-    println!("Server berjalan di http://localhost:8080");
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-
-    Ok(())
-}
-
-// --- HANDLER: GET ACHIEVEMENT ---
-
 async fn get_achievement(
     State(pool): State<PgPool>,
     Path(user_id): Path<i32>,
 ) -> Result<Json<UserAchievementRes>, StatusCode> {
-    // Ambil data user
+    // ambil data user
     // password buat tes di postman aja
     let user = sqlx::query!("SELECT id, username, email, password FROM users WHERE id = $1", user_id)
         .fetch_optional(&pool)
@@ -68,7 +42,7 @@ async fn get_achievement(
         None => return Err(StatusCode::NOT_FOUND),
     };
 
-    // Ambil daftar achievement user tersebut
+    // ambil daftar achievement user tersebut
     let records = sqlx::query!("SELECT achievement_type FROM achievements WHERE user_id = $1", user_id)
         .fetch_all(&pool)
         .await
@@ -85,14 +59,11 @@ async fn get_achievement(
     }))
 }
 
-// --- HANDLER: UPDATE ACCHIEVEMNT & LOGIKA ACHIEVEMENT ---
-
 async fn update_achievement(
     State(pool): State<PgPool>,
     Path(user_id): Path<i32>,
     Json(payload): Json<UpdateAchievementReq>,
 ) -> StatusCode {
-    // 1. Update data user di database jika ada data yang dikirim
     if let Some(username) = &payload.username {
         let _ = sqlx::query!("UPDATE users SET username = $1 WHERE id = $2", username, user_id).execute(&pool).await;
     }
@@ -103,24 +74,10 @@ async fn update_achievement(
         let _ = sqlx::query!("UPDATE users SET password = $1 WHERE id = $2", password, user_id).execute(&pool).await;
     }
 
-    // 2. LOGIKA ACHIEVEMENT
-    // Fungsi bantuan (closure) untuk insert achievement dengan mengabaikan error jika duplikat
-    // let insert_achievement = |ach_type: &str| {
-    //     let pool = pool.clone();
-    //     let ach_type = ach_type.to_string();
-    //     async move {
-    //         let _ = sqlx::query!(
-    //             "INSERT INTO achievements (user_id, achievement_type) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-    //             user_id, ach_type
-    //         ).execute(&pool).await;
-    //     }
-    // };
-
     let insert_achievement = |ach_type: &str| {
         let pool = pool.clone();
         let ach_type = ach_type.to_string();
         async move {
-            // Kita hapus "let _ =" dan tambahkan penangkap error
             match sqlx::query!(
                 "INSERT INTO achievements (user_id, achievement_type) VALUES ($1, $2) ON CONFLICT DO NOTHING",
                 user_id, ach_type
@@ -131,7 +88,7 @@ async fn update_achievement(
         }
     };
 
-    // Ambil data user terbaru untuk mengecek kelengkapannya
+    // ambil data user terbaru untuk mengecek kelengkapannya
     let current_user = sqlx::query!("SELECT username, email, password FROM users WHERE id = $1", user_id)
         .fetch_one(&pool)
         .await;
@@ -151,8 +108,6 @@ async fn update_achievement(
             insert_achievement("PASSWORD_FILLED").await;
             completed_count += 1;
         }
-
-        // 3. Pengecekan Achievement Final (Ke-4)
         if completed_count == 3 {
             insert_achievement("ALL_COMPLETED").await;
         }
