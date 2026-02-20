@@ -1,0 +1,1 @@
+// Gamification errors - AchievementNotFound, MissionAlreadyClaimed
