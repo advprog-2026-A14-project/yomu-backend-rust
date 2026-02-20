@@ -1,0 +1,43 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Rust and cargo-tarpaulin
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: cargo-tarpaulin
+
+    - name: Cache cargo
+      uses: Swatinem/rust-cache@v2
+
+    - name: Cache SonarCloud packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+
+    - name: Generate code coverage report
+      run: |
+        cargo tarpaulin --out Xml --output-dir ./coverage
+
+    - name: SonarCloud Scan
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
