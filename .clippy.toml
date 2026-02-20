@@ -3,26 +3,8 @@
 
 # Disallow certain warnings
 disallowed-methods = [
-    # Disallow unwrap() - use expect() with meaningful message or proper error handling
     "unwrap",
 ]
 
-# Disallow certain types
-disallowed-types = [
-    # Disallow Box<dyn Error> - use thiserror's context instead
-    # "std::error::Error",
-]
-
-# Warnings to deny (treat as errors)
+# Minimum Supported Rust Version
 msrv = "1.75"
-
-# Allow doc-links in functions
-doc-valid-idents = ["Yomu", "Engine"]
-
-# Cargo clippy allow flags
-allow = [
-    # Allow ptr_arg for now (sometimes needed for specific APIs)
-    "clippy::ptr_arg",
-    # Allow unnecessary_cast (sometimes needed for type clarity)
-    "clippy::unnecessary_cast",
-]
