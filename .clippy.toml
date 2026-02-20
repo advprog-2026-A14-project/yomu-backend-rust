@@ -1,10 +1,9 @@
 # Clippy linter configuration
 # https://rust-lang.github.io/rust-clippy/
 
-# Disallow certain warnings
 disallowed-methods = [
-    { name = "unwrap", allow-invalid = true },
+    "std::option::Option::unwrap",
+    "std::result::Result::unwrap",
 ]
 
-# Minimum Supported Rust Version
-msrv = "1.75"
+msrv = "1.85"
