@@ -1,0 +1,39 @@
+# Build artifacts
+/target
+debug/
+release/
+
+# Dependencies
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.docker/
+
+# Misc
+*.log
+*.tmp

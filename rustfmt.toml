@@ -1,0 +1,41 @@
+# Rustfmt configuration
+# https://rustfmt.ru/
+
+# Format code on save
+edition = "2024"
+
+# Maximum line width
+max_width = 100
+
+# Tab size
+tab_spaces = 4
+
+# Use spaces instead of tabs
+hard_tabs = false
+
+# newline before trailing comma
+trailing_comma = "Vertical"
+
+# Put imports in groups
+imports_granularity = "Crate"
+
+# Group standard library imports
+group_imports = "StdExternalCrate"
+
+# Remove unnecessary parentheses
+unnecessary_parens = true
+
+# Format match arms that can fit on same line
+format_strings = true
+
+# Normalize comments
+normalize_comments = true
+
+# Wrap comments
+comment_width = 80
+
+# Reorder imports alphabetically
+reorder_imports = true
+
+# Reorder modules
+reorder_modules = true

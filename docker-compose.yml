@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: yomu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yomu
+      POSTGRES_PASSWORD: yomu_password
+      POSTGRES_DB: yomu_engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yomu -d yomu_engine"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: yomu-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # Yomu Engine Rust Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yomu-engine
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+      - RUST_BACKTRACE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+
+  # Development container with hot reload
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: yomu-engine-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "2222:2222"  # For cargo watch
+    environment:
+      - DATABASE_URL=postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - cargo_cache:/app/target
+
+volumes:
+  postgres_data:
+  redis_data:
+  cargo_cache:
+
+networks:
+  default:
+    name: yomu-network

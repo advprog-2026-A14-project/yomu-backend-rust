@@ -1,8 +1,8 @@
 [package]
-name = "yomu-engine-rust"
+name = "yomu-backend-rust"
 version = "0.1.0"
 edition = "2024"
-description = "Yomu Engine - Clean Architecture + Hexagonal Architecture + DDD + SOLID"
+description = "Yomu Backend Rust"
 
 [dependencies]
 
