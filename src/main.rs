@@ -19,8 +19,7 @@ async fn health_check() -> (StatusCode, Json<HealthResponse>) {
     (
         StatusCode::OK,
         Json(HealthResponse {
-            status: "healthy".to_string(),
-            message: "Yomu Engine is running".to_string(),
+            status: "ok".to_string(),
         }),
     )
 }

@@ -2,7 +2,7 @@
 # https://rustfmt.ru/
 
 # Format code on save
-edition = "2024"
+edition = "2021"
 
 # Maximum line width
 max_width = 100
