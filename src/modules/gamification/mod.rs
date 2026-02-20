@@ -6,8 +6,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::env;
+use sqlx::{PgPool};
 
 // struktur data untuk json dan db
 #[derive(Deserialize)]
@@ -24,6 +23,12 @@ struct UserAchievementRes {
     email: Option<String>,
     password: Option<String>, // ini buat tes postman aja berhasil berubah atau engga habis di-update
     achievements: Vec<String>,
+}
+
+pub fn routes() -> Router<PgPool> {
+    Router::new()
+        .route("/api/achievement/:id", get(get_achievement))
+        .route("/api/achievement/:id/update", post(update_achievement))
 }
 
 async fn get_achievement(
