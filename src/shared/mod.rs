@@ -1,1 +1,1 @@
-// Shared Kernel - Cross-module code (base types, utilities)
+pub mod utils;
