@@ -1,51 +1,52 @@
-# Multi-stage build for Yomu Engine Rust
-# Stage 1: Builder - Compile the application
-FROM rust:1.93-slim AS builder
+FROM rust:1.93-slim AS chef
 
 WORKDIR /app
 
-# Install build dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-chef
 
-# Copy dependency files first for better caching
-COPY Cargo.toml ./
-COPY Cargo.lock ./
+FROM chef AS planner
 
-# Create dummy src to build dependencies first
-RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+COPY . .
 
-# Build dependencies (this will be cached)
-RUN cargo build --release
-RUN rm -rf src
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Copy actual source code
-COPY src ./src
+FROM chef AS builder
 
-# Build the application
-RUN cargo build --release
+COPY --from=planner /app/recipe.json recipe.json
 
-# Stage 2: Production Runtime
-FROM debian:bookworm-slim
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY . .
+
+ENV SQLX_OFFLINE=true
+
+RUN cargo build --release --bin yomu-backend-rust
+
+FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy binary from builder
-COPY --from=builder /app/target/release/yomu-engine-rust /app/yomu-engine-rust
 
-# Copy .env.example as default env file
+RUN useradd -ms /bin/bash yomuuser \
+    && chown -R yomuuser:yomuuser /app
+
+USER yomuuser
+
+
+COPY --from=builder /app/target/release/yomu-backend-rust /app/yomu-backend-rust
+
+
 COPY --from=builder /app/.env.example /app/.env.example
 
-# Expose port
 EXPOSE 8080
 
-# Run the application
-CMD ["/app/yomu-engine-rust"]
+CMD ["/app/yomu-backend-rust"]

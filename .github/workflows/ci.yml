@@ -63,13 +63,12 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
-
   test:
     name: Test
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: yomu
           POSTGRES_PASSWORD: yomu_password
@@ -83,7 +82,7 @@ jobs:
           - 5432:5432
 
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -104,11 +103,25 @@ jobs:
         with:
           workspaces: ./
 
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
+
+
+      - name: Run Database Migrations
+        run: cargo sqlx migrate run
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+
       - name: Run tests
         run: cargo test --all
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
+
+      - name: Check sqlx prepare (Offline Mode)
+        run: cargo sqlx prepare --workspace --check
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
 
   docker:
     name: Docker Build

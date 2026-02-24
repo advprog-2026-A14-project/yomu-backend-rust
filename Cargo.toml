@@ -6,41 +6,40 @@ description = "Yomu Backend Rust"
 
 [dependencies]
 
-# ============== WEB FRAMEWORK ==============
 axum = "0.8.8"
 tower = "0.5.2"
-tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+tower-http = { version = "0.6.2", features = ["cors", "trace", "timeout"] }
 
-# ============== ASYNC RUNTIME ==============
+
 tokio = { version = "1.49.0", features = ["full"] }
 
-# ============== SERIALIZATION ==============
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.138"
 
-# ============== DATABASE ==============
-# PostgreSQL with SQLx
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
 
-# Redis for caching
 redis = { version = "1.0.4", features = ["tokio-comp"] }
 
-# ============== UTILITIES ==============
+
 uuid = { version = "1.21.0", features = ["v4", "serde"] }
-chrono = { version = "0.4.43", features = ["serde"] }
+chrono = { version = "0.4.44", features = ["serde"] }
 dotenvy = "0.15.7"
 
-# ============== ERROR HANDLING ==============
 thiserror = "2.0.18"
 anyhow = "1.0.95"
 
-# ============== LOGGING ==============
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
-# ============== VALIDATION ==============
 validator = { version = "0.20.0", features = ["derive"] }
 
-# ============== HTTP CLIENT (for internal calls to Java Core) ==============
 reqwest = { version = "0.13.2", features = ["json"] }
 
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+todo = "allow"
+unimplemented = "allow"
