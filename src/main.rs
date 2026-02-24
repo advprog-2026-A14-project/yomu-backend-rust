@@ -1,6 +1,8 @@
 mod config;
+mod modules;
 mod shared;
 
+use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
 use axum::{Router, extract::State, http::StatusCode, response::Json, routing::get};
 use redis::aio::MultiplexedConnection;
@@ -39,6 +41,12 @@ async fn health_check(
     let response = ApiResponse::success("Server is running well", health_data);
 
     (StatusCode::OK, Json(response))
+}
+
+async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {
+    Err(AppError::NotFound(
+        "Clan atau User tidak ditemukan di database".to_string(),
+    ))
 }
 
 #[tokio::main]
@@ -91,6 +99,11 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/error", get(simulate_error))
+        .nest(
+            "/api/users",
+            modules::user_sync::presentation::routes::user_sync_routes(),
+        )
         .with_state(state)
         .layer(middleware_stack);
 
