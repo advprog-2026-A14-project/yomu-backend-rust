@@ -1,1 +1,1 @@
-// User Repository port - Trait for inserting to engine_users table
+pub mod user_repository;

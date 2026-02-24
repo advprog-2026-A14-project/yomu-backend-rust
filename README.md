@@ -476,54 +476,6 @@ cargo clippy --all -- -D warnings
 
 ---
 
-## API Endpoints
-
-### Core Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/health` | Health check and service status | No |
-| GET | `/health/ready` | Readiness probe (includes DB check) | No |
-| GET | `/health/live` | Liveness probe | No |
-
-### League Module Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/v1/clans` | List all clans | Yes |
-| POST | `/api/v1/clans` | Create a new clan | Yes |
-| GET | `/api/v1/clans/:id` | Get clan details | Yes |
-| PUT | `/api/v1/clans/:id` | Update clan details | Yes |
-| DELETE | `/api/v1/clans/:id` | Delete a clan | Yes |
-| POST | `/api/v1/clans/:id/join` | Join a clan | Yes |
-| POST | `/api/v1/clans/:id/leave` | Leave a clan | Yes |
-| GET | `/api/v1/clans/:id/members` | List clan members | Yes |
-| GET | `/api/v1/leaderboard` | Get global leaderboard | Yes |
-| GET | `/api/v1/leaderboard/clan/:id` | Get clan leaderboard | Yes |
-
-### Gamification Module Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| GET | `/api/v1/achievements` | List all achievements | Yes |
-| GET | `/api/v1/achievements/:id` | Get achievement details | Yes |
-| POST | `/api/v1/achievements/:id/claim` | Claim achievement reward | Yes |
-| GET | `/api/v1/missions` | List all missions | Yes |
-| GET | `/api/v1/missions/:id` | Get mission details | Yes |
-| POST | `/api/v1/missions/:id/progress` | Update mission progress | Yes |
-| GET | `/api/v1/user/:userId/progress` | Get user progress | Yes |
-
-### User Sync Module Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/v1/sync/users` | Sync user from Java Core | Internal |
-| GET | `/api/v1/sync/users/:id` | Get shadow user | Internal |
-| PUT | `/api/v1/sync/users/:id` | Update shadow user | Internal |
-| DELETE | `/api/v1/sync/users/:id` | Remove shadow user | Internal |
-
----
-
 ## Architecture
 
 This project uses a **Module-Based (Feature-Based) Structure** combined with **Hexagonal Architecture** (also known as Ports and Adapters). This architectural approach provides excellent separation of concerns and makes the codebase highly testable and maintainable.

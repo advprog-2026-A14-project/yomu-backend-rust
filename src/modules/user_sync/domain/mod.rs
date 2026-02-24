@@ -1,1 +1,3 @@
-// User Sync Domain - Shadow user entity representing user from Java
+pub mod entities;
+pub mod errors;
+pub mod repositories;
