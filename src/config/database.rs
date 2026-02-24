@@ -1,7 +1,8 @@
+use redis::{Client, aio::MultiplexedConnection};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
+use tracing::info;
 
-use tracing::{error, info};
 pub async fn init_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     info!("Trying to connect to PostgreSQL...");
 
@@ -14,6 +15,18 @@ pub async fn init_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Erro
         .await?;
 
     info!("Connected to PostgreSQL successfully!");
-    
+
     Ok(pool)
+}
+
+pub async fn init_redis_pool(redis_url: &str) -> Result<MultiplexedConnection, redis::RedisError> {
+    info!("Trying to connect to Redis...");
+
+    let client = Client::open(redis_url)?;
+
+    let con = client.get_multiplexed_async_connection().await?;
+
+    info!("Connected to Redis successfully!");
+
+    Ok(con)
 }
