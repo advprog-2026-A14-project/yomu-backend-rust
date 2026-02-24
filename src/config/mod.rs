@@ -1,3 +1,4 @@
+pub mod database;
 use std::env;
 
 #[derive(Debug, Clone)]
@@ -16,7 +17,9 @@ impl AppConfig {
 
         Self {
             host: get_env("APP_HOST", "0.0.0.0"),
-            port: get_env("APP_PORT", "8080").parse().expect("APP_PORT must be a number"),
+            port: get_env("APP_PORT", "8080")
+                .parse()
+                .expect("APP_PORT must be a number"),
             database_url: get_env_strict("DATABASE_URL"),
             redis_url: get_env_strict("REDIS_URL"),
             java_core_url: get_env_strict("JAVA_CORE_URL"),
