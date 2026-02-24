@@ -1,7 +1,7 @@
 mod config;
 mod shared;
 
-
+use crate::shared::utils::response::ApiResponse;
 use axum::{Router, extract::State, http::StatusCode, response::Json, routing::get};
 use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
@@ -15,8 +15,6 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use crate::shared::utils::response::ApiResponse;
-
 
 #[derive(Clone)]
 pub struct AppState {
@@ -30,7 +28,9 @@ struct HealthResponse {
     version: String,
 }
 
-async fn health_check(State(_state): State<AppState>) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
+async fn health_check(
+    State(_state): State<AppState>,
+) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
     let health_data = HealthResponse {
         status: "healthy".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),

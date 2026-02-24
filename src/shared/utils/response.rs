@@ -17,7 +17,6 @@ impl<T> ApiResponse<T> {
         }
     }
 
-
     pub fn success_without_data(message: &str) -> Self {
         Self {
             success: true,
@@ -25,7 +24,6 @@ impl<T> ApiResponse<T> {
             data: None,
         }
     }
-
 
     pub fn error(message: &str) -> Self {
         Self {
