@@ -71,6 +71,13 @@ async fn main() {
         }
     };
 
+    tracing::info!("Running database migrations...");
+    if let Err(e) = sqlx::migrate!().run(&db_pool).await {
+        tracing::error!("Error while doing database migrations: {}", e);
+        std::process::exit(1);
+    }
+    tracing::info!("Database migration complete!");
+
     let redis_pool = match config::database::init_redis_pool(&app_config.redis_url).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -97,13 +104,16 @@ async fn main() {
                 .allow_headers(Any),
         );
 
+    let api_v1_router = Router::new();
+    let internal_api_router = Router::new().nest(
+        "/users",
+        modules::user_sync::presentation::routes::user_sync_routes(),
+    );
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/error", get(simulate_error))
-        .nest(
-            "/api/users",
-            modules::user_sync::presentation::routes::user_sync_routes(),
-        )
+        .nest("/api/v1", api_v1_router)
+        .nest("/api/internal", internal_api_router)
         .with_state(state)
         .layer(middleware_stack);
 
