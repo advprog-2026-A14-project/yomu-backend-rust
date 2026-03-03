@@ -19,6 +19,7 @@ COPY Cargo.toml ./
 COPY Cargo.lock ./
 COPY rustfmt.toml ./
 COPY .clippy.toml ./
+COPY migrations ./migrations
 
 # Create src directory
 RUN mkdir -p src
