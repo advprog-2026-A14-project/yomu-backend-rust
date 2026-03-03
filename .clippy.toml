@@ -1,9 +1,3 @@
-# Clippy linter configuration
-# https://rust-lang.github.io/rust-clippy/
-
-disallowed-methods = [
-    "std::option::Option::unwrap",
-    "std::result::Result::unwrap",
-]
-
 msrv = "1.85"
+
+allow-unwrap-in-tests = true

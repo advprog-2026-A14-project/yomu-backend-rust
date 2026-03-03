@@ -1,1 +1,1 @@
-// User Sync controllers - Internal API handlers
+pub mod internal_user_controller;

@@ -1,1 +1,1 @@
-// User Sync entities - ShadowUser representation from Java Core
+pub mod shadow_user;

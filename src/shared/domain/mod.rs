@@ -1,1 +1,1 @@
-// Shared domain - Base types/structs for Domain layer
+pub mod base_error;

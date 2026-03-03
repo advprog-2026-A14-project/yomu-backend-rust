@@ -1,1 +1,1 @@
-// Shared utilities - Common helper functions
+pub mod response;
