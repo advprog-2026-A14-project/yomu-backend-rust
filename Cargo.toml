@@ -44,3 +44,7 @@ unwrap_used = "warn"
 expect_used = "warn"
 todo = "allow"
 unimplemented = "allow"
+
+[dev-dependencies]
+mockall = "0.14.0"
+async-trait = "0.1"
