@@ -48,3 +48,7 @@ unimplemented = "allow"
 [dev-dependencies]
 mockall = "0.14.0"
 async-trait = "0.1"
+
+[[test]]
+name = "usecase_test"
+path = "tests/modules/league/usecase_test.rs"
