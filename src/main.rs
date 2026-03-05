@@ -5,9 +5,6 @@ mod shared;
 use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
 use axum::{Router, extract::State, http::StatusCode, response::Json, routing::get};
-use redis::aio::MultiplexedConnection;
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use std::{net::SocketAddr, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
@@ -17,18 +14,7 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-#[derive(Clone)]
-pub struct AppState {
-    pub db: PgPool,
-    pub redis: MultiplexedConnection,
-}
-
-#[derive(Serialize, Deserialize)]
-struct HealthResponse {
-    status: String,
-    version: String,
-}
+use yomu_backend_rust::{AppState, HealthResponse};
 
 async fn health_check(
     State(_state): State<AppState>,
