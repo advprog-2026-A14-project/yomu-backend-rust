@@ -1,1 +1,3 @@
-// Domain entities - Aggregate Roots & Value Objects for League
+pub mod clan;
+pub mod clan_member;
+pub mod score;
