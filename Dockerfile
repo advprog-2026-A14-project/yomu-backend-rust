@@ -10,10 +10,7 @@ RUN apt-get update && apt-get install -y \
     musl-tools \
     && rm -rf /var/lib/apt/lists/* \
     && rustup target add x86_64-unknown-linux-musl
-    pkg-config \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/* \
-    && rustup target add x86_64-unknown-linux-musl
+
 
 RUN cargo install cargo-chef
 
