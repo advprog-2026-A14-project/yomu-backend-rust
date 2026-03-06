@@ -1,1 +1,1 @@
-// Infrastructure Layer - Adapters (PostgreSQL, Redis, HTTP clients)
+pub mod database;

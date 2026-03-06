@@ -1,11 +1,8 @@
-use dotenvy::dotenv;
-dotenv().ok();
-
 const TEST_DATABASE_URL: &str = "postgres://yomu:yomu_password@localhost:5432/yomu_engine_test";
 const TEST_REDIS_URL: &str = "redis://localhost:6379";
 
-use uuid::Uuid;
 use chrono::Utc;
+use uuid::Uuid;
 
 use yomu_backend_rust::modules::league::domain::entities::clan::Clan;
 use yomu_backend_rust::modules::league::domain::entities::clan_member::ClanMember;
@@ -29,8 +26,8 @@ mod pg_tests {
     async fn test_pg_create_and_get_clan() {
         let pool = setup_pg_pool().await;
 
-        let leader::new_v4_id = Uuid();
-        
+        let leader_id = Uuid::new_v4();
+
         sqlx::query("INSERT INTO engine_users (user_id, total_score) VALUES ($1, 0)")
             .bind(leader_id)
             .execute(&pool)
@@ -54,7 +51,7 @@ mod pg_tests {
         .expect("Failed to insert clan");
 
         let row: (Uuid, String, Uuid, String, i64) = sqlx::query_as(
-            "SELECT id, name, leader_id, tier, total_score FROM clans WHERE id = $1"
+            "SELECT id, name, leader_id, tier, total_score FROM clans WHERE id = $1",
         )
         .bind(clan_id)
         .fetch_one(&pool)
@@ -72,7 +69,7 @@ mod pg_tests {
             .execute(&pool)
             .await
             .expect("Failed to delete clan");
-        
+
         sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
             .bind(leader_id)
             .execute(&pool)
@@ -119,23 +116,19 @@ mod pg_tests {
 
         let member = ClanMember::new(clan_id, member_id, MemberRole::Member);
 
-        sqlx::query(
-            "INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES ($1, $2, $3)"
-        )
-        .bind(member.clan_id())
-        .bind(member.user_id())
-        .bind(member.joined_at())
-        .execute(&pool)
-        .await
-        .expect("Failed to insert clan member");
+        sqlx::query("INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES ($1, $2, $3)")
+            .bind(member.clan_id())
+            .bind(member.user_id())
+            .bind(member.joined_at())
+            .execute(&pool)
+            .await
+            .expect("Failed to insert clan member");
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM clan_members WHERE clan_id = $1"
-        )
-        .bind(clan_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to count members");
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM clan_members WHERE clan_id = $1")
+            .bind(clan_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count members");
 
         assert_eq!(count.0, 2);
 
@@ -144,19 +137,19 @@ mod pg_tests {
             .execute(&pool)
             .await
             .expect("Failed to delete members");
-        
+
         sqlx::query("DELETE FROM clans WHERE id = $1")
             .bind(clan_id)
             .execute(&pool)
             .await
             .expect("Failed to delete clan");
-        
+
         sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
             .bind(leader_id)
             .execute(&pool)
             .await
             .expect("Failed to delete leader user");
-            
+
         sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
             .bind(member_id)
             .execute(&pool)
@@ -171,7 +164,7 @@ mod pg_tests {
         let pool = setup_pg_pool().await;
 
         let leader_id = Uuid::new_v4();
-        
+
         sqlx::query("INSERT INTO engine_users (user_id, total_score) VALUES ($1, 0)")
             .bind(leader_id)
             .execute(&pool)
@@ -242,13 +235,13 @@ mod pg_tests {
             .execute(&pool)
             .await
             .expect("Failed to delete buffs");
-        
+
         sqlx::query("DELETE FROM clans WHERE id = $1")
             .bind(clan_id)
             .execute(&pool)
             .await
             .expect("Failed to delete clan");
-        
+
         sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
             .bind(leader_id)
             .execute(&pool)
@@ -264,9 +257,9 @@ mod redis_tests {
     use redis::AsyncCommands;
 
     async fn setup_redis() -> redis::aio::MultiplexedConnection {
-        let client = redis::Client::open(TEST_REDIS_URL)
-            .expect("Failed to create Redis client");
-        client.get_multiplexed_async_connection()
+        let client = redis::Client::open(TEST_REDIS_URL).expect("Failed to create Redis client");
+        client
+            .get_multiplexed_async_connection()
             .await
             .expect("Failed to connect to Redis")
     }
@@ -278,7 +271,7 @@ mod redis_tests {
         let tier = "Bronze";
         let clan_a_id = Uuid::new_v4();
         let clan_b_id = Uuid::new_v4();
-        
+
         let key_a = format!("leaderboard:{}:{}", tier, clan_a_id);
         let key_b = format!("leaderboard:{}:{}", tier, clan_b_id);
 
@@ -308,7 +301,7 @@ mod redis_tests {
             .expect("Failed to get top clans");
 
         let leaderboard_key = format!("leaderboard:{}", tier);
-        
+
         let top_clans: Vec<(String, i64)> = redis::cmd("ZREVRANGE")
             .arg(&leaderboard_key)
             .arg(0)
@@ -323,7 +316,7 @@ mod redis_tests {
             .query_async(&mut con)
             .await
             .expect("Failed to clean up key A");
-            
+
         let _: () = redis::cmd("DEL")
             .arg(&key_b)
             .query_async(&mut con)

@@ -1,1 +1,2 @@
-// Database infrastructure - PostgreSQL & Redis implementations
+pub mod postgres;
+pub mod redis;
