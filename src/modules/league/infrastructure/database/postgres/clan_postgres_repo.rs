@@ -4,7 +4,7 @@ use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::repositories::ClanRepository;
 use crate::shared::domain::base_error::AppError;
 use async_trait::async_trait;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 pub struct ClanPostgresRepo {
@@ -37,11 +37,10 @@ impl ClanRepository for ClanPostgresRepo {
     }
 
     async fn get_clan_by_id(&self, clan_id: Uuid) -> Result<Option<Clan>, AppError> {
-        let row = sqlx::query_as!(
-            ClanRow,
+        let row = sqlx::query_as::<_, ClanRow>(
             "SELECT id, name, leader_id, tier, total_score, created_at FROM clans WHERE id = $1",
-            clan_id
         )
+        .bind(clan_id)
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| AppError::InternalServer(e.to_string()))?;
@@ -80,29 +79,27 @@ impl ClanRepository for ClanPostgresRepo {
     }
 
     async fn is_user_in_any_clan(&self, user_id: Uuid) -> Result<bool, AppError> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM clan_members WHERE user_id = $1",
-            user_id
-        )
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clan_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
 
-        Ok(count.unwrap_or(0) > 0)
+        Ok(count > 0)
     }
 
     async fn get_user_clan_id(&self, user_id: Uuid) -> Result<Option<Uuid>, AppError> {
-        let row = sqlx::query_scalar!(
-            "SELECT clan_id FROM clan_members WHERE user_id = $1",
-            user_id
-        )
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        let row = sqlx::query("SELECT clan_id FROM clan_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
 
-        Ok(row)
+        match row {
+            Some(r) => Ok(Some(r.get("clan_id"))),
+            None => Ok(None),
+        }
     }
-
     async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError> {
         sqlx::query("UPDATE clans SET total_score = total_score + $1 WHERE id = $2")
             .bind(score)
