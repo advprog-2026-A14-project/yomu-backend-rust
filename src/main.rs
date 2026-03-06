@@ -90,7 +90,10 @@ async fn main() {
                 .allow_headers(Any),
         );
 
-    let api_v1_router = Router::new();
+    let api_v1_router = Router::new().nest(
+        "/clans",
+        modules::league::presentation::routes::league_routes(),
+    );
     let internal_api_router = Router::new().nest(
         "/users",
         modules::user_sync::presentation::routes::user_sync_routes(),
