@@ -53,3 +53,7 @@ async-trait = "0.1"
 [[test]]
 name = "usecase_test"
 path = "tests/modules/league/usecase_test.rs"
+
+[[test]]
+name = "infrastructure_test"
+path = "tests/modules/league/infrastructure_test.rs"
