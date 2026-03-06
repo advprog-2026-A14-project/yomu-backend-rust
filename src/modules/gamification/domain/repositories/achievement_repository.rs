@@ -1,0 +1,13 @@
+use async_trait::async_trait;
+use uuid::Uuid;
+use chrono::NaiveDate;
+
+use crate::modules::gamification::domain::entities::achievement::Achievement;
+use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
+
+#[async_trait]
+pub trait AchievementRepository: Send + Sync {
+    async fn get_achievement_by_id(&self, id: Uuid) -> Result<Option<Achievement>, String>;
+    async fn get_user_achievements(&self, user_id: Uuid) -> Result<Vec<UserAchievement>, String>;
+    async fn save_user_achievement(&self, user_achievement: &UserAchievement) -> Result<(), String>;
+}
