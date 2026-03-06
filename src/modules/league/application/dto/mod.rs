@@ -1,18 +1,19 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateClanDto {
     pub name: String,
     pub leader_id: Uuid,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JoinClanDto {
     pub clan_id: Uuid,
     pub user_id: Uuid,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateScoreDto {
     pub clan_id: Uuid,
     pub user_id: Uuid,
@@ -20,7 +21,7 @@ pub struct UpdateScoreDto {
     pub multiplier: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaderboardEntry {
     pub clan_id: Uuid,
     pub clan_name: String,
@@ -29,7 +30,7 @@ pub struct LeaderboardEntry {
     pub rank: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeaderboardDto {
     pub entries: Vec<LeaderboardEntry>,
     pub tier: String,

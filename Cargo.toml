@@ -57,3 +57,7 @@ path = "tests/modules/league/usecase_test.rs"
 [[test]]
 name = "infrastructure_test"
 path = "tests/modules/league/infrastructure_test.rs"
+
+[[test]]
+name = "presentation_test"
+path = "tests/modules/league/presentation_test.rs"
