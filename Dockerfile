@@ -1,6 +1,6 @@
 # Multi-stage build for Railway deployment
 # Use official Rust image with musl target support
-FROM rust:1.75-bookworm AS chef
+FROM rust:1.85-bookworm AS chef
 
 WORKDIR /app
 
