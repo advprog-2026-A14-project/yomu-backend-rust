@@ -1,1 +1,2 @@
-// Controllers - Axum handlers (receive request, call use case, return response)
+pub mod clan_controller;
+pub mod score_controller;

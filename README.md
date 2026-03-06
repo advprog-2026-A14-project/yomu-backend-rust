@@ -38,11 +38,11 @@ lorem ipsum
 | Category | Technology | Version | Purpose |
 |----------|------------|---------|---------|
 | **Language** | Rust | 1.75+ | Primary programming language |
-| **Runtime** | Tokio | 1.x | Asynchronous runtime |
-| **Web Framework** | Axum | 0.7.x | REST API framework |
+| **Runtime** | Tokio | 1.49.0 | Asynchronous runtime |
+| **Web Framework** | Axum | 0.8.8 | REST API framework |
 | **Database** | PostgreSQL | 14+ | Primary data store |
 | **Cache** | Redis | 7+ | Caching and pub/sub |
-| **ORM** | SQLx | 0.7.x | Type-safe database access |
+| **ORM** | SQLx | 0.8.6 | Type-safe database access |
 
 ### Supporting Libraries
 
@@ -609,25 +609,23 @@ cargo test
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| axum | 0.7 | Web framework |
-| tower | 0.4 | HTTP middleware |
-| tower-http | 0.5 | HTTP utilities |
-| tokio | 1 | Async runtime |
-| sqlx | 0.7 | Database ORM |
-| sqlx-runtime-tokio | 0.7 | SQLx Tokio runtime |
-| redis | 0.25 | Redis client |
-| serde | 1 | Serialization |
-| serde_json | 1 | JSON handling |
-| validator | 0.16 | Request validation |
-| thiserror | 1 | Error handling |
-| anyhow | 1 | Error handling |
-| tracing | 0.1 | Logging |
-| tracing-subscriber | 0.3 | Logging subscriber |
-| config | 0.14 | Configuration |
-| dotenv | 0.15 | Environment variables |
-| chrono | 0.4 | Date/time |
-| uuid | 1 | Unique IDs |
-| reqwest | 0.11 | HTTP client |
+| axum | 0.8.8 | Web framework |
+| tower | 0.5.2 | HTTP middleware |
+| tower-http | 0.6.2 | HTTP utilities |
+| tokio | 1.49.0 | Async runtime |
+| sqlx | 0.8.6 | Database ORM |
+| redis | 1.0.4 | Redis client |
+| serde | 1.0.228 | Serialization |
+| serde_json | 1.0.138 | JSON handling |
+| validator | 0.20.0 | Request validation |
+| thiserror | 2.0.18 | Error handling |
+| anyhow | 1.0.95 | Error handling |
+| tracing | 0.1.41 | Logging |
+| tracing-subscriber | 0.3.22 | Logging subscriber |
+| dotenvy | 0.15.7 | Environment variables |
+| chrono | 0.4.44 | Date/time |
+| uuid | 1.21.0 | Unique IDs |
+| reqwest | 0.13.2 | HTTP client |
 
 ### Development Dependencies
 
