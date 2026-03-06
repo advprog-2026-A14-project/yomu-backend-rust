@@ -1,17 +1,14 @@
-# Use Debian Bookworm for consistent glibc version
-FROM debian:bookworm-slim AS chef
+# Multi-stage build for Railway deployment
+# Use official Rust image with musl target support
+FROM rust:1.75-bookworm AS chef
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
-    ca-certificates \
-    curl \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -sL https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init | sh -s -- -y --default-toolchain 1.75.0
-
-ENV PATH="/root/.cargo/bin:${PATH}"
+    && rustup target add x86_64-unknown-linux-musl
 
 RUN cargo install cargo-chef
 
@@ -34,6 +31,7 @@ ENV SQLX_OFFLINE=true
 # Build for musl (static linking) to avoid glibc version issues
 RUN cargo build --release --target x86_64-unknown-linux-musl --bin yomu-backend-rust
 
+# Minimal runtime image
 FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
@@ -41,9 +39,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd -ms /bin/bash yomuuser \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -ms /bin/bash yomuuser \
     && chown -R yomuuser:yomuuser /app
 
 USER yomuuser
