@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::modules::gamification::domain::ports::mission_repository::MissionRepository;
+
+use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 
 pub struct ClaimMissionRewardUseCase {
     pub repository: Arc<dyn MissionRepository>,
@@ -25,6 +26,8 @@ impl ClaimMissionRewardUseCase {
         self.repository.save_user_mission(&user_mission).await?;
 
         self.repository.add_user_score(user_id, daily_mission.reward_points()).await?;
+
+        Ok(())
     }
 }
 
@@ -32,8 +35,9 @@ impl ClaimMissionRewardUseCase {
 mod tests {
     use super::*;
     use chrono::NaiveDate;
-    use crate::modules::gamification::domain::ports::mission_repository::MockMissionRepository;
-    use crate::modules::gamification::domain::entities::mission::{DailyMission, UserMission};
+    use crate::modules::gamification::domain::repositories::mission_repository::MockMissionRepository;
+    use crate::modules::gamification::domain::entities::user_mission::UserMission;
+    use crate::modules::gamification::domain::entities::daily_mission::DailyMission;
 
     #[tokio::test] 
     async fn test_execute_claim_success_adds_score() {

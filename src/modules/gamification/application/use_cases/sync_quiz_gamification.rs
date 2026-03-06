@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use chrono::Utc;
 
-use crate::modules::gamification::application::dtos::quiz_sync::SyncQuizHistoryRequestDto;
+use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 
@@ -30,7 +30,7 @@ impl SyncQuizGamificationUseCase {
                 let mut user_mission = match self.mission_repo.get_user_mission(payload.user_id, mission.id()).await? {
                     Some(um) => um,
                     None => {
-                        crate::modules::gamification::domain::entities::mission::UserMission::new(payload.user_id, mission.id())
+                        crate::modules::gamification::domain::entities::user_mission::UserMission::new(payload.user_id, mission.id())
                     }
                 };
 
@@ -40,7 +40,7 @@ impl SyncQuizGamificationUseCase {
             }
         }
 
-        let mut user_achievements = self.achievement_repo.get_user_achievements(payload.user_id).await?;
+        let user_achievements = self.achievement_repo.get_user_achievements(payload.user_id).await?;
 
         for mut user_ach in user_achievements {
             if user_ach.is_completed() {
