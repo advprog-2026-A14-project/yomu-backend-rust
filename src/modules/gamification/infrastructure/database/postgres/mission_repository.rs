@@ -87,10 +87,60 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn get_active_missions_by_date(&self, _date: NaiveDate) -> Result<Vec<DailyMission>, String> {
-        todo!("Implementasi query select misi berdasarkan tanggal")
+        let records = sqlx::query!(
+            r#"
+            SELECT id, description, target_count, target_date, reward_points 
+            FROM daily_missions 
+            WHERE target_date = $1
+            "#,
+            date
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_active_missions): {}", e))?;
+
+        // Mengubah Vec dari row database menjadi Vec<DailyMission>
+        let mut missions = Vec::new();
+        for row in records {
+            if let Ok(mission) = DailyMission::new(
+                row.id, 
+                row.description, 
+                row.target_count, 
+                row.target_date, 
+                row.reward_points
+            ) {
+                missions.push(mission);
+            }
+        }
+
+        Ok(missions)
     }
 
     async fn get_daily_mission_by_id(&self, _id: Uuid) -> Result<Option<DailyMission>, String> {
-        todo!("Implementasi query select misi berdasarkan id")
+       let record = sqlx::query!(
+            r#"
+            SELECT id, description, target_count, target_date, reward_points 
+            FROM daily_missions 
+            WHERE id = $1
+            "#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_daily_mission): {}", e))?;
+
+        match record {
+            Some(row) => {
+                let mission = DailyMission::new(
+                    row.id, 
+                    row.description, 
+                    row.target_count, 
+                    row.target_date, 
+                    row.reward_points
+                ).map_err(|e| e.to_string())?;
+                Ok(Some(mission))
+            },
+            None => Ok(None)
+        }
     }
 }
