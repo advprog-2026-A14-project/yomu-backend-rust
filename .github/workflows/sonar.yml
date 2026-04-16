@@ -79,14 +79,14 @@ jobs:
         DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
         REDIS_URL: redis://localhost:6379
 
-    - name: SonarCloud Scan
+      - name: SonarCloud Scan
       uses: sonarsource/sonarqube-scan-action@master
       with:
         args: >
           -Dsonar.organization=adpro-genap-2025-2026-a14
           -Dsonar.projectKey=adpro-genap-2025-2026-a14
           -Dsonar.sources=src
-          -Dsonar.coverageReportPaths=coverage/cobertura.xml
+          -Dsonar.rust.cobertura.reportPaths=coverage/cobertura.xml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
