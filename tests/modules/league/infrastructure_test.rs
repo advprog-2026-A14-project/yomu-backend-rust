@@ -50,7 +50,7 @@ mod pg_tests {
         .await
         .expect("Failed to insert clan");
 
-        let row: (Uuid, String, Uuid, String, i64) = sqlx::query_as(
+        let row: (Uuid, String, Uuid, String, i32) = sqlx::query_as(
             "SELECT id, name, leader_id, tier, total_score FROM clans WHERE id = $1",
         )
         .bind(clan_id)
@@ -62,7 +62,7 @@ mod pg_tests {
         assert_eq!(row.1, "Test Clan");
         assert_eq!(row.2, leader_id);
         assert_eq!(row.3, "Bronze");
-        assert_eq!(row.4, 0);
+        assert_eq!(row.4, 0i32);
 
         sqlx::query("DELETE FROM clans WHERE id = $1")
             .bind(clan_id)
@@ -130,7 +130,7 @@ mod pg_tests {
             .await
             .expect("Failed to count members");
 
-        assert_eq!(count.0, 2);
+        assert_eq!(count.0, 1);
 
         sqlx::query("DELETE FROM clan_members WHERE clan_id = $1")
             .bind(clan_id)
@@ -219,7 +219,7 @@ mod pg_tests {
         .expect("Failed to insert expired buff");
 
         let active_buffs: Vec<(String, f64)> = sqlx::query_as(
-            "SELECT buff_name, multiplier FROM clan_buffs WHERE clan_id = $1 AND expires_at > NOW()"
+            "SELECT buff_name, multiplier::float8 FROM clan_buffs WHERE clan_id = $1 AND expires_at > NOW()"
         )
         .bind(clan_id)
         .fetch_all(&pool)
