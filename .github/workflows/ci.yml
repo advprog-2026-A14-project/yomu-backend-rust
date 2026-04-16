@@ -103,32 +103,6 @@ jobs:
         with:
           workspaces: ./
 
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U yomu -q; then
-              echo "PostgreSQL is ready"
-              exit 0
-            fi
-            echo "Waiting for PostgreSQL... ($i/30)"
-            sleep 2
-          done
-          echo "PostgreSQL failed to start"
-          exit 1
-
-      - name: Wait for Redis
-        run: |
-          for i in {1..15}; do
-            if redis-cli -h localhost -p 6379 ping | grep -q PONG; then
-              echo "Redis is ready"
-              exit 0
-            fi
-            echo "Waiting for Redis... ($i/15)"
-            sleep 2
-          done
-          echo "Redis failed to start"
-          exit 1
-
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
 
