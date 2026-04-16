@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize}; 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,8 +25,12 @@ impl UserAchievement {
     }
 
     pub fn add_progress(&mut self, amount: i32, milestone_target: i32, now: DateTime<Utc>) {
-        if amount <= 0 { return; }
-        if self.is_completed { return; }
+        if amount <= 0 {
+            return;
+        }
+        if self.is_completed {
+            return;
+        }
         self.current_progress += amount;
         if self.current_progress >= milestone_target {
             self.current_progress = milestone_target;
@@ -35,28 +39,28 @@ impl UserAchievement {
         }
     }
 
-    pub fn user_id(&self) -> Uuid { 
-        self.user_id 
+    pub fn user_id(&self) -> Uuid {
+        self.user_id
     }
 
-    pub fn achievement_id(&self) -> Uuid { 
-        self.achievement_id 
+    pub fn achievement_id(&self) -> Uuid {
+        self.achievement_id
     }
 
-    pub fn current_progress(&self) -> i32 { 
-        self.current_progress 
+    pub fn current_progress(&self) -> i32 {
+        self.current_progress
     }
 
-    pub fn is_completed(&self) -> bool { 
-        self.is_completed 
+    pub fn is_completed(&self) -> bool {
+        self.is_completed
     }
 
-    pub fn is_shown_on_profile(&self) -> bool { 
-        self.is_shown_on_profile 
+    pub fn is_shown_on_profile(&self) -> bool {
+        self.is_shown_on_profile
     }
 
-    pub fn completed_at(&self) -> Option<DateTime<Utc>> { 
-        self.completed_at 
+    pub fn completed_at(&self) -> Option<DateTime<Utc>> {
+        self.completed_at
     }
 }
 
@@ -67,14 +71,14 @@ mod test {
     #[test]
     fn test_add_progress_should_complete_achievement_when_target_met() {
         let mut user_achievement = UserAchievement::new(Uuid::new_v4(), Uuid::new_v4());
-        let milestone_target = 10; 
+        let milestone_target = 10;
         let test_time = Utc::now();
 
-        user_achievement.add_progress(5, milestone_target, test_time); 
+        user_achievement.add_progress(5, milestone_target, test_time);
         assert_eq!(user_achievement.current_progress(), 5);
         assert!(!user_achievement.is_completed());
 
-        user_achievement.add_progress(7, milestone_target, test_time); 
+        user_achievement.add_progress(7, milestone_target, test_time);
         assert_eq!(user_achievement.current_progress(), 10);
         assert!(user_achievement.is_completed());
         assert!(user_achievement.completed_at().is_some());

@@ -14,8 +14,34 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 use yomu_backend_rust::{AppState, HealthResponse};
 
+#[derive(OpenApi)]
+#[openapi(
+    paths(health_check),
+    tags(
+        (name = "health", description = "Health check endpoints"),
+        (name = "clans", description = "Clan management endpoints"),
+        (name = "leaderboard", description = "Leaderboard endpoints")
+    ),
+    info(
+        title = "Yomu Backend Rust API",
+        version = env!("CARGO_PKG_VERSION"),
+        description = "Gamification engine API for Yomu learning platform"
+    )
+)]
+pub struct OpenApiDoc;
+
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Server is healthy")
+    ),
+    tag = "health"
+)]
 async fn health_check(
     State(_state): State<AppState>,
 ) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
@@ -95,9 +121,14 @@ async fn main() {
         "/users",
         modules::user_sync::presentation::routes::user_sync_routes(),
     );
+
+    let swagger =
+        SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", OpenApiDoc::openapi());
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/error", get(simulate_error))
+        .merge(swagger)
         .nest("/api/v1", api_v1_router)
         .nest("/api/internal", internal_api_router)
         .with_state(state)
