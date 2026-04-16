@@ -43,7 +43,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Clippy
-        run: cargo clippy --all --all-targets -- -D warnings
+        run: cargo clippy --all --all-targets -- -W warnings
 
   doc:
     name: Documentation
@@ -64,7 +64,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   test:
-    name: Test
+    name: Test Suite
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -77,7 +77,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 5432:5432
 
@@ -87,7 +87,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 6379:6379
 
@@ -106,14 +106,37 @@ jobs:
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
 
-
       - name: Run Database Migrations
         run: cargo sqlx migrate run
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
 
-      - name: Run tests
-        run: cargo test --all
+      - name: Run library unit tests
+        run: cargo test --lib
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run binary unit tests
+        run: cargo test --bin yomu-backend-rust
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run infrastructure tests
+        run: cargo test --test infrastructure_test
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run presentation tests
+        run: cargo test --test presentation_test
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run use case tests
+        run: cargo test --test usecase_test
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379

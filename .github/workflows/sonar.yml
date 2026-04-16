@@ -3,11 +3,41 @@ name: SonarCloud Analysis
 on:
   push:
     branches: [ "**" ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: yomu
+          POSTGRES_PASSWORD: yomu_password
+          POSTGRES_DB: yomu_engine_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:8-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
     - name: Checkout repository
@@ -15,10 +45,18 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Setup Rust and cargo-tarpaulin
+    - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-tarpaulin
+      uses: taiki-e/install-action@v2
       with:
-        components: cargo-tarpaulin
+        tool: cargo-tarpaulin
+
+    - name: Install sqlx-cli
+      uses: taiki-e/install-action@v2
+      with:
+        tool: sqlx-cli
 
     - name: Cache cargo
       uses: Swatinem/rust-cache@v2
@@ -30,12 +68,25 @@ jobs:
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
 
+    - name: Run database migrations
+      run: cargo sqlx migrate run
+      env:
+        DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+
     - name: Generate code coverage report
-      run: |
-        cargo tarpaulin --out Xml --output-dir ./coverage
+      run: cargo tarpaulin --out Xml --output-dir ./coverage
+      env:
+        DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+        REDIS_URL: redis://localhost:6379
 
     - name: SonarCloud Scan
       uses: sonarsource/sonarqube-scan-action@master
+      with:
+        args: >
+          -Dsonar.organization=adpro-genap-2025-2026-a14
+          -Dsonar.projectKey=adpro-genap-2025-2026-a14
+          -Dsonar.sources=src
+          -Dsonar.coverageReportPaths=coverage/cobertura.xml
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

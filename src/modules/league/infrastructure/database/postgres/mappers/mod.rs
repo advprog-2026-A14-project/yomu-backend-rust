@@ -1,1 +1,1 @@
-// Database mappers - Convert between DB models and Domain entities
+pub mod clan_mapper;
