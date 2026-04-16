@@ -121,7 +121,7 @@ impl AchievementRepository for PostgresAchievementRepository {
             r#"
             UPDATE engine_users 
             SET total_score = total_score + $1 
-            WHERE id = $2
+            WHERE user_id = $2
             "#,
             points,
             user_id

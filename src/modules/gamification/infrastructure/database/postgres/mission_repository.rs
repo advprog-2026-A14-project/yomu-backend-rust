@@ -36,11 +36,8 @@ impl MissionRepository for PostgresMissionRepository {
         match record {
             Some(row) => {
                 let mut mission = UserMission::new(row.user_id, row.mission_id);
-                // Injeksi state dari database secara manual
-                mission.add_progress(row.current_progress, row.current_progress); 
-                if row.is_claimed {
-                    let _ = mission.claim_reward(row.current_progress); 
-                }
+                mission.current_progress = row.current_progress;
+                mission.is_claimed = row.is_claimed;
                 Ok(Some(mission))
             },
             None => Ok(None)
@@ -74,7 +71,7 @@ impl MissionRepository for PostgresMissionRepository {
             r#"
             UPDATE engine_users 
             SET total_score = total_score + $1 
-            WHERE id = $2
+            WHERE user_id = $2
             "#,
             points,
             user_id
@@ -86,12 +83,12 @@ impl MissionRepository for PostgresMissionRepository {
         Ok(())
     }
 
-    async fn get_active_missions_by_date(&self, _date: NaiveDate) -> Result<Vec<DailyMission>, String> {
+    async fn get_active_missions_by_date(&self, date: NaiveDate) -> Result<Vec<DailyMission>, String> {
         let records = sqlx::query!(
             r#"
-            SELECT id, description, target_count, target_date, reward_points 
+            SELECT id, description, target_count, date, reward_points 
             FROM daily_missions 
-            WHERE target_date = $1
+            WHERE date = $1
             "#,
             date
         )
@@ -106,7 +103,7 @@ impl MissionRepository for PostgresMissionRepository {
                 row.id, 
                 row.description, 
                 row.target_count, 
-                row.target_date, 
+                row.date, 
                 row.reward_points
             ) {
                 missions.push(mission);
@@ -116,10 +113,10 @@ impl MissionRepository for PostgresMissionRepository {
         Ok(missions)
     }
 
-    async fn get_daily_mission_by_id(&self, _id: Uuid) -> Result<Option<DailyMission>, String> {
+    async fn get_daily_mission_by_id(&self, id: Uuid) -> Result<Option<DailyMission>, String> {
        let record = sqlx::query!(
             r#"
-            SELECT id, description, target_count, target_date, reward_points 
+            SELECT id, description, target_count, date, reward_points 
             FROM daily_missions 
             WHERE id = $1
             "#,
@@ -135,7 +132,7 @@ impl MissionRepository for PostgresMissionRepository {
                     row.id, 
                     row.description, 
                     row.target_count, 
-                    row.target_date, 
+                    row.date, 
                     row.reward_points
                 ).map_err(|e| e.to_string())?;
                 Ok(Some(mission))
