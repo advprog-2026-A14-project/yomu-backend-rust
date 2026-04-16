@@ -1,38 +1,17 @@
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use uuid::Uuid;
+pub mod clan_detail_dto;
+pub mod clan_response_dto;
+pub mod create_clan_dto;
+pub mod join_clan_dto;
+pub mod leaderboard_dto;
+pub mod leaderboard_query_dto;
+pub mod update_score_dto;
+pub mod user_tier_dto;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CreateClanDto {
-    pub name: String,
-    pub leader_id: Uuid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct JoinClanDto {
-    pub clan_id: Uuid,
-    pub user_id: Uuid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct UpdateScoreDto {
-    pub clan_id: Uuid,
-    pub user_id: Uuid,
-    pub base_score: i64,
-    pub multiplier: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LeaderboardEntry {
-    pub clan_id: Uuid,
-    pub clan_name: String,
-    pub total_score: i64,
-    pub tier: String,
-    pub rank: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LeaderboardDto {
-    pub entries: Vec<LeaderboardEntry>,
-    pub tier: String,
-}
+pub use clan_detail_dto::{ClanDetailDto, ClanMemberDto};
+pub use clan_response_dto::ClanResponseDto;
+pub use create_clan_dto::CreateClanDto;
+pub use join_clan_dto::JoinClanDto;
+pub use leaderboard_dto::{LeaderboardDto, LeaderboardEntry};
+pub use leaderboard_query_dto::LeaderboardQueryDto;
+pub use update_score_dto::UpdateScoreDto;
+pub use user_tier_dto::UserTierDto;
