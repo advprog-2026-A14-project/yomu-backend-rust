@@ -3,6 +3,7 @@ use chrono::Utc;
 use std::collections::HashMap;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
+use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 
@@ -26,8 +27,7 @@ impl SyncQuizGamificationUseCase {
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
         
         for mission in active_missions {
-            // filter dan cek deskripsi atau tipe misi, misal misi baca
-            if mission.description().to_lowercase().contains("baca") {
+            if let MissionType::Quiz = mission.mission_type() {
                 
                 let mut user_mission = match self.mission_repo.get_user_mission(payload.user_id, mission.id()).await? {
                     Some(um) => um,

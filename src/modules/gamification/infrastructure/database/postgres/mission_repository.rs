@@ -86,7 +86,7 @@ impl MissionRepository for PostgresMissionRepository {
     async fn get_active_missions_by_date(&self, date: NaiveDate) -> Result<Vec<DailyMission>, String> {
         let records = sqlx::query!(
             r#"
-            SELECT id, description, target_count, date, reward_points 
+            SELECT id, description, target_count, date, reward_points, mission_type
             FROM daily_missions 
             WHERE date = $1
             "#,
@@ -99,12 +99,19 @@ impl MissionRepository for PostgresMissionRepository {
         // Mengubah Vec dari row database menjadi Vec<DailyMission>
         let mut missions = Vec::new();
         for row in records {
+            let m_type = match row.mission_type.as_str() {
+                "Quiz" => MissionType::Quiz,
+                "DailyLogin" => MissionType::DailyLogin,
+                _ => MissionType::ReadArticle,
+            };
+
             if let Ok(mission) = DailyMission::new(
                 row.id, 
                 row.description, 
                 row.target_count, 
                 row.date, 
-                row.reward_points
+                row.reward_points,
+                row.m_type
             ) {
                 missions.push(mission);
             }

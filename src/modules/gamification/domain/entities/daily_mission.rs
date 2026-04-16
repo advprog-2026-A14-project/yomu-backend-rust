@@ -2,6 +2,14 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum MissionType {
+    #[default]
+    ReadArticle,
+    Quiz,
+    DailyLogin,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DailyMission {
     pub id: Uuid,
@@ -9,6 +17,7 @@ pub struct DailyMission {
     pub target_count: i32,
     pub date: NaiveDate,
     pub reward_points: i32,
+    pub mission_type: MissionType,
 }
 
 impl DailyMission {
@@ -17,7 +26,8 @@ impl DailyMission {
         description: String, 
         target_count: i32, 
         date: NaiveDate, 
-        reward_points: i32
+        reward_points: i32,
+        mission_type: MissionType,
     ) -> Result<Self, &'static str> {
         let mut mission = Self {
             id,
@@ -25,9 +35,10 @@ impl DailyMission {
             target_count: 1,
             date,
             reward_points: 0,
+            mission_type,
         };
         
-        mission.update_details(description, target_count, date, reward_points)?;
+        mission.update_details(description, target_count, date, reward_points, mission_type)?;
         Ok(mission)
     }
 
@@ -36,7 +47,8 @@ impl DailyMission {
         new_description: String, 
         new_target: i32, 
         new_date: NaiveDate,
-        new_reward: i32
+        new_reward: i32,
+        new_mission_type: MissionType
     ) -> Result<(), &'static str> {
         
         if new_description.trim().is_empty() {
@@ -53,6 +65,7 @@ impl DailyMission {
         self.target_count = new_target;
         self.date = new_date;
         self.reward_points = new_reward;
+        self.mission_type = new_mission_type;
 
         Ok(())
     }
@@ -62,6 +75,7 @@ impl DailyMission {
     pub fn target_count(&self) -> i32 { self.target_count }
     pub fn date(&self) -> chrono::NaiveDate { self.date }
     pub fn reward_points(&self) -> i32 { self.reward_points }
+    pub fn mission_type(&self) -> MissionType {self.mission_type}
 }
 
 #[cfg(test)]
@@ -71,7 +85,7 @@ mod tests {
     #[test]
     fn test_daily_mission_creation_success() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 6).unwrap();
-        let mission = DailyMission::new(Uuid::new_v4(), "Baca 3 Berita".to_string(), 3, date, 100);
+        let mission = DailyMission::new(Uuid::new_v4(), "Baca 3 Berita".to_string(), 3, date, 100, MissionType::DailyLogin);
         
         assert!(mission.is_ok());
         let mission = mission.unwrap();
@@ -82,7 +96,7 @@ mod tests {
     #[test]
     fn test_daily_mission_fails_on_invalid_input() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 6).unwrap();
-        let invalid_reward = DailyMission::new(Uuid::new_v4(), "Valid".to_string(), 1, date, -10);
+        let invalid_reward = DailyMission::new(Uuid::new_v4(), "Valid".to_string(), 1, date, -10, MissionType::DailyLogin);
         assert_eq!(invalid_reward.unwrap_err(), "Poin reward tidak boleh bernilai negatif.");
     }
 }
