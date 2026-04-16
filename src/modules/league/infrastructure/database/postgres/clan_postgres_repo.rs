@@ -19,6 +19,7 @@ impl ClanPostgresRepo {
 
 #[async_trait]
 impl ClanRepository for ClanPostgresRepo {
+    /// Inserts a new clan record into the clans table.
     async fn create_clan(&self, clan: &Clan) -> Result<(), AppError> {
         sqlx::query(
             "INSERT INTO clans (id, name, leader_id, tier, total_score, created_at) VALUES ($1, $2, $3, $4, $5, $6)"
@@ -36,6 +37,10 @@ impl ClanRepository for ClanPostgresRepo {
         Ok(())
     }
 
+    /// Retrieves a clan by ID from PostgreSQL.
+    ///
+    /// Maps database tier string ("Bronze", "Silver", etc.) to ClanTier enum.
+    /// Returns None if clan does not exist.
     async fn get_clan_by_id(&self, clan_id: Uuid) -> Result<Option<Clan>, AppError> {
         let row = sqlx::query_as::<_, ClanRow>(
             "SELECT id, name, leader_id, tier, total_score, created_at FROM clans WHERE id = $1",
@@ -66,6 +71,7 @@ impl ClanRepository for ClanPostgresRepo {
         }
     }
 
+    /// Inserts a new member into the clan_members table.
     async fn add_member(&self, member: &ClanMember) -> Result<(), AppError> {
         sqlx::query("INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES ($1, $2, $3)")
             .bind(member.clan_id())
@@ -78,6 +84,9 @@ impl ClanRepository for ClanPostgresRepo {
         Ok(())
     }
 
+    /// Checks if a user is already a member of any clan.
+    ///
+    /// Used for validation before creating or joining a clan.
     async fn is_user_in_any_clan(&self, user_id: Uuid) -> Result<bool, AppError> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clan_members WHERE user_id = $1")
             .bind(user_id)

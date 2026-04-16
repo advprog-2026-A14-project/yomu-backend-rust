@@ -21,6 +21,10 @@ impl SyncQuizGamificationUseCase {
         }
     }
 
+    /// Syncs quiz completion to gamification: updates mission progress and achievements.
+    ///
+    /// For each active daily mission containing "baca" (read), increments user progress.
+    /// For each achievement, adds progress and grants reward points upon completion.
     pub async fn execute(&self, payload: SyncQuizHistoryRequestDto) -> Result<(), String> {
         let now = Utc::now();
         let today = now.naive_utc().date();

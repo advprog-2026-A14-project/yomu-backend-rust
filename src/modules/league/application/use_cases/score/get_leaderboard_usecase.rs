@@ -11,6 +11,10 @@ impl<L: LeaderboardCache> GetLeaderboardUseCase<L> {
         Self { leaderboard }
     }
 
+    /// Retrieves the top clans for a given leaderboard tier.
+    ///
+    /// Uses Redis cache for fast retrieval. Returns up to 10 clans
+    /// ordered by total score descending.
     pub async fn execute(&self, tier: String) -> Result<LeaderboardDto, AppError> {
         let entries = self.leaderboard.get_top_clans(&tier, 10).await?;
 

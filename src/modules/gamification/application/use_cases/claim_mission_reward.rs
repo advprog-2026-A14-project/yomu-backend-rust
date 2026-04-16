@@ -12,6 +12,10 @@ impl ClaimMissionRewardUseCase {
         Self { repository }
     }
 
+    /// Claims reward for a completed daily mission.
+    ///
+    /// Validates user has sufficient progress, then marks reward as claimed
+    /// and adds reward points to user's total score.
     pub async fn execute(&self, user_id: Uuid, mission_id: Uuid) -> Result<(), String> {
         let mut user_mission = self
             .repository

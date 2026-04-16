@@ -19,6 +19,14 @@ pub enum AppError {
 }
 
 impl IntoResponse for AppError {
+    /// Converts AppError into an Axum HTTP response.
+    ///
+    /// Maps error variants to HTTP status codes:
+    /// - InternalServer -> 500
+    /// - BadRequest -> 400
+    /// - NotFound -> 404
+    ///
+    /// Logs the error using tracing::error! for observability.
     fn into_response(self) -> Response {
         let (status, error_message) = match &self {
             AppError::InternalServer(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
