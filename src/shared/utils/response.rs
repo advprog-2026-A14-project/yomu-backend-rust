@@ -33,3 +33,60 @@ impl<T> ApiResponse<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::Deserialize;
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestData {
+        value: i32,
+    }
+
+    #[test]
+    fn success_response_serializes_correctly() {
+        let response = ApiResponse::success("OK", TestData { value: 42 });
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains(r#""success":true"#));
+        assert!(json.contains(r#""message":"OK""#));
+        assert!(json.contains(r#""value":42"#));
+        assert!(json.contains(r#""data":"#));
+    }
+
+    #[test]
+    fn success_without_data_excludes_data_field() {
+        let response = ApiResponse::<i32>::success_without_data("Created");
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains(r#""success":true"#));
+        assert!(json.contains(r#""message":"Created""#));
+        assert!(!json.contains(r#""data""#));
+    }
+
+    #[test]
+    fn error_response_has_success_false() {
+        let response: ApiResponse<()> = ApiResponse::error("Not found");
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains(r#""success":false"#));
+    }
+
+    #[test]
+    fn error_response_includes_message() {
+        let response: ApiResponse<()> = ApiResponse::error("Something went wrong");
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains(r#""message":"Something went wrong""#));
+    }
+
+    #[test]
+    fn success_with_null_data() {
+        let response = ApiResponse::<Option<i32>>::success("OK", None);
+        let json = serde_json::to_string(&response).unwrap();
+
+        assert!(json.contains(r#""success":true"#));
+        assert!(json.contains(r#""data":null"#));
+    }
+}

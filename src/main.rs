@@ -27,16 +27,45 @@ use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
     tag = "health"
 )]
 async fn health_check(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
+    let postgres_status = match sqlx::query("SELECT 1").fetch_one(&state.db).await {
+        Ok(_) => "connected".to_string(),
+        Err(e) => format!("error: {}", e),
+    };
+
+    let mut redis_conn = state.redis.clone();
+    let redis_status = match redis::cmd("PING")
+        .query_async::<String>(&mut redis_conn)
+        .await
+    {
+        Ok(resp) if resp == "PONG" => "connected".to_string(),
+        Ok(resp) => resp,
+        Err(e) => format!("error: {}", e),
+    };
+
+    let overall_status = if postgres_status == "connected" && redis_status == "connected" {
+        "healthy"
+    } else {
+        "unhealthy"
+    };
+
     let health_data = HealthResponse {
-        status: "healthy".to_string(),
+        status: overall_status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        postgres: postgres_status,
+        redis: redis_status,
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
 
-    (StatusCode::OK, Json(response))
+    let status_code = if overall_status == "healthy" {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (status_code, Json(response))
 }
 
 async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {

@@ -23,33 +23,42 @@ pub struct AppState {
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
+    pub postgres: String,
+    pub redis: String,
 }
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        modules::league::presentation::controllers::clan_controller::create_clan_handler,
-        modules::league::presentation::controllers::clan_controller::join_clan_handler,
-        modules::league::presentation::controllers::score_controller::get_leaderboard_handler,
-        modules::user_sync::presentation::controllers::internal_user_controller::sync_user_handler,
+        // League - Clans
+        crate::modules::league::presentation::controllers::clan_controller::create_clan_handler,
+        crate::modules::league::presentation::controllers::clan_controller::join_clan_handler,
+        crate::modules::league::presentation::controllers::clan_controller::get_clan_detail_handler,
+        crate::modules::league::presentation::controllers::clan_controller::get_user_tier_handler,
+        // League - Leaderboard
+        crate::modules::league::presentation::controllers::score_controller::get_leaderboard_handler,
     ),
     components(
         schemas(
-            modules::league::application::dto::CreateClanDto,
-            modules::league::application::dto::JoinClanDto,
-            modules::league::application::dto::LeaderboardDto,
-            modules::league::application::dto::LeaderboardEntry,
-            modules::league::domain::entities::clan::Clan,
-            modules::league::domain::entities::clan::ClanTier,
-            modules::league::domain::entities::clan_member::ClanMember,
-            modules::league::domain::entities::clan_member::MemberRole,
+            // League DTOs
+            crate::modules::league::application::dto::CreateClanDto,
+            crate::modules::league::application::dto::JoinClanDto,
+            crate::modules::league::application::dto::LeaderboardDto,
+            crate::modules::league::application::dto::LeaderboardEntry,
+            crate::modules::league::application::dto::clan_detail_dto::ClanDetailDto,
+            crate::modules::league::application::dto::clan_detail_dto::ClanMemberDto,
+            crate::modules::league::application::dto::user_tier_dto::UserTierDto,
+            // League Entities
+            crate::modules::league::domain::entities::clan::Clan,
+            crate::modules::league::domain::entities::clan::ClanTier,
+            crate::modules::league::domain::entities::clan_member::ClanMember,
+            crate::modules::league::domain::entities::clan_member::MemberRole,
         )
     ),
     tags(
-        (name = "health", description = "Health check endpoints"),
-        (name = "clans", description = "Clan management endpoints"),
-        (name = "leaderboard", description = "Leaderboard endpoints"),
-        (name = "users", description = "User synchronization endpoints")
+        (name = "clans", description = "Clan management endpoints - create, join, and view clan details"),
+        (name = "leaderboard", description = "Leaderboard endpoints for clan rankings by tier"),
+        (name = "User Sync", description = "User synchronization endpoints from Java backend")
     ),
     info(
         title = "Yomu Backend Rust API",

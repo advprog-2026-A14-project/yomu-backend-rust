@@ -41,3 +41,43 @@ impl IntoResponse for AppError {
         (status, Json(body)).into_response()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_error_internal_server_maps_to_500() {
+        let error = AppError::InternalServer("db connection lost".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn app_error_bad_request_maps_to_400() {
+        let error = AppError::BadRequest("invalid input".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn app_error_not_found_maps_to_404() {
+        let error = AppError::NotFound("resource not found".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn app_error_into_response_returns_correct_body() {
+        let error = AppError::NotFound("item_xyz".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn app_error_logs_error_message() {
+        let error = AppError::InternalServer("test error".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
