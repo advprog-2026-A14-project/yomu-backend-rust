@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use chrono::Utc;
+use std::collections::HashMap;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
@@ -41,6 +42,13 @@ impl SyncQuizGamificationUseCase {
             }
         }
 
+        let all_achievements = self.achievement_repo.get_all_achievements().await?;
+
+        let achievement_map: HashMap<_, _> = all_achievements
+            .into_iter()
+            .map(|ach| (ach.id(), ach))
+            .collect();
+
         let user_achievements = self.achievement_repo.get_user_achievements(payload.user_id).await?;
 
         for mut user_ach in user_achievements {
@@ -48,7 +56,7 @@ impl SyncQuizGamificationUseCase {
                 continue;
             }
 
-            if let Some(achievement_master) = self.achievement_repo.get_achievement_by_id(user_ach.achievement_id()).await? {
+            if let Some(achievement_master) = achievement_map.get(&user_ach.achievement_id()) {
                 
                 user_ach.add_progress(1, achievement_master.milestone_target(), now);
 
