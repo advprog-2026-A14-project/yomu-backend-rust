@@ -19,7 +19,8 @@ impl SyncQuizGamificationUseCase {
     }
 
     pub async fn execute(&self, payload: SyncQuizHistoryRequestDto) -> Result<(), String> {
-        let today = Utc::now().naive_utc().date();
+        let now = Utc::now();
+        let today = now.naive_utc().date();
 
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
         
@@ -49,7 +50,7 @@ impl SyncQuizGamificationUseCase {
 
             if let Some(achievement_master) = self.achievement_repo.get_achievement_by_id(user_ach.achievement_id()).await? {
                 
-                user_ach.add_progress(1, achievement_master.milestone_target());
+                user_ach.add_progress(1, achievement_master.milestone_target(), now);
 
                 // reward otomatis dapat habis selesaikan achievement
                 if user_ach.is_completed() {

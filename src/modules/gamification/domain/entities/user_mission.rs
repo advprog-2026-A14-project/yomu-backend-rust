@@ -20,6 +20,7 @@ impl UserMission {
     }
 
     pub fn add_progress(&mut self, amount: i32, target_count: i32) {
+        if amount <= 0 { return; }
         if self.current_progress < target_count {
             self.current_progress += amount;
             if self.current_progress > target_count {
@@ -73,5 +74,20 @@ mod test {
          
         assert!(result_second_claim.is_err());
         assert_eq!(result_second_claim.unwrap_err(), "Reward untuk misi ini sudah di-claim sebelumnya.");
+    }
+
+    #[test]
+    fn test_add_progress_should_ignore_negative_or_zero_amount() {
+        let mut user_mission = UserMission::new(Uuid::new_v4(), Uuid::new_v4());
+        let target = 3;
+
+        user_mission.add_progress(0, target);
+        assert_eq!(user_mission.current_progress(), 0);
+
+        user_mission.add_progress(-2, target);
+        assert_eq!(user_mission.current_progress(), 0);
+        
+        user_mission.add_progress(1, target);
+        assert_eq!(user_mission.current_progress(), 1);
     }
 }
