@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShadowUser {
     pub user_id: Uuid,

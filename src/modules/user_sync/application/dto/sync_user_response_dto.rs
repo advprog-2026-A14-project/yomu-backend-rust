@@ -3,6 +3,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct SyncUserRequestDto {
+pub struct SyncUserResponseDto {
     pub user_id: Uuid,
+    pub message: String,
 }
