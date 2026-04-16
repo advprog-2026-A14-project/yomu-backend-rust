@@ -46,8 +46,10 @@ dead_code = "warn"
 [lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
-todo = "allow"
-unimplemented = "allow"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+panic = "warn"
 
 [dev-dependencies]
 mockall = "0.14.0"

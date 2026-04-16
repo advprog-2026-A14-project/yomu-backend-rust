@@ -134,19 +134,29 @@ async fn main() {
         .with_state(state)
         .layer(middleware_stack);
 
+    #[allow(clippy::expect_used)]
     let addr: SocketAddr = format!("{}:{}", app_config.host, app_config.port)
         .parse()
         .expect("Invalid host/port configuration");
 
     tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to bind TCP listener on {}: {}", addr, e);
+            std::process::exit(1);
+        });
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            tracing::error!("Axum server error: {}", e);
+            std::process::exit(1);
+        });
 }
 
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()

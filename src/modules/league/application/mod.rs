@@ -1,4 +1,6 @@
+#[allow(unused_imports)]
 pub mod dto;
+#[allow(unused_imports)]
 pub mod use_cases;
 
 pub use dto::CreateClanDto;

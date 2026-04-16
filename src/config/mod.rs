@@ -2,6 +2,7 @@ pub mod database;
 use std::env;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
@@ -12,6 +13,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    #[allow(clippy::panic)]
     pub fn load() -> Self {
         let _ = dotenvy::dotenv();
 
@@ -32,6 +34,7 @@ fn get_env(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+#[allow(clippy::panic)]
 fn get_env_strict(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("Missing required environment variable: {}", key))
 }
