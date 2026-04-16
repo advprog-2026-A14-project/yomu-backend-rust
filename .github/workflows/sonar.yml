@@ -48,6 +48,15 @@ jobs:
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Install cargo-tarpaulin
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-tarpaulin
+
+    - name: Install sqlx-cli
+      uses: taiki-e/install-action@v2
+      with:
+        tool: sqlx-cli
 
     - name: Cache cargo
       uses: Swatinem/rust-cache@v2
