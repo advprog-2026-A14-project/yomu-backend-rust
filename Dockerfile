@@ -54,4 +54,13 @@ COPY --from=builder /app/.env.example /app/.env.example
 
 EXPOSE 8080
 
+# Add metadata labels
+LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
+LABEL org.opencontainers.image.description="Yomu Backend Rust - Gamification Engine"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
 CMD ["/app/yomu-backend-rust"]

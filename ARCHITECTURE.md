@@ -1,9 +1,9 @@
 # Yomu Backend Rust Architecture
 
-**Version:** 0.1.0
-**Last Updated:** 2026-04-16
+**Version:** 0.2.0
+**Last Updated:** 2026-04-17
 **Framework:** Axum 0.8.8 + Tower middleware
-**Edition:** Rust 2024, MSRV 1.85
+**Edition:** Rust 2024, MSRV 1.88
 **Ports:** PostgreSQL 5432, Redis 6379, App 8080
 
 ## Table of Contents
@@ -29,7 +29,8 @@
 19. [Security Considerations](#19-security-considerations)
 20. [Performance Considerations](#20-performance-considerations)
 21. [Testing Strategy](#21-testing-strategy)
-22. [Future Considerations](#22-future-considerations)
+22. [Observability Architecture](#22-observability-architecture)
+23. [Future Considerations](#23-future-considerations)
 
 ---
 
@@ -2301,7 +2302,144 @@ cargo sqlx prepare --workspace --check
 
 ---
 
-## 22. Future Considerations
+## 22. Observability Architecture
+
+### 22.1 Overview
+
+The Yomu Backend Rust implements a comprehensive observability stack with structured logging, metrics collection, and distributed tracing. All observability components are integrated into the application's startup sequence and maintain production-grade reliability.
+
+### 22.2 Structured JSON Logging
+
+**Implementation:** `src/shared/infrastructure/logging.rs`
+
+**Features:**
+- JSON-formatted log output for machine parsing
+- Hourly rotating file appender via `tracing-appender`
+- Dual output: file (JSON) + console (pretty, ANSI colors)
+- Thread ID and request ID correlation
+- File path and line number for all log entries
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUST_LOG` | `yomu_backend_rust=debug,tower_http=info` | Log level filter |
+| `LOG_DIR` | `/var/log/yomu` | Log file directory |
+
+**Log Format:**
+```json
+{"timestamp":"2026-04-17T10:30:00Z","level":"INFO","target":"yomu_backend_rust::modules::league","message":"Clan created","thread_id":"abc123","file":"clan_service.rs:42","line":42}
+```
+
+### 22.3 Prometheus Metrics
+
+**Implementation:** `src/shared/infrastructure/metrics/`
+
+**Endpoint:** `GET /metrics` (Prometheus scrape target)
+
+**Metrics Exposed:**
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `http_requests_total` | Counter | method, path, status | Total HTTP requests |
+| `http_request_duration_seconds` | Histogram | method, path | Request latency |
+| `db_pool_idle` | Gauge | - | Idle DB connections |
+| `db_pool_active` | Gauge | - | Active DB connections |
+| `redis_pool_idle` | Gauge | - | Idle Redis connections |
+| `redis_pool_active` | Gauge | - | Active Redis connections |
+| `cache_hits_total` | Counter | - | Cache hit count |
+| `cache_misses_total` | Counter | - | Cache miss count |
+
+**Histogram Buckets (request duration):**
+```
+0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0 seconds
+```
+
+### 22.4 OpenTelemetry Distributed Tracing
+
+**Implementation:** `src/shared/infrastructure/telemetry.rs`
+
+**Features:**
+- gRPC OTLP exporter for Grafana Tempo
+- Automatic trace propagation via `axum-tracing-opentelemetry`
+- Custom span attributes for business logic
+- Configurable sampling rate
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otlp-gateway-prod-us-central1.grafana.net/otlp` | OTLP collector endpoint |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Protocol (grpc or http/protobuf) |
+| `OTEL_SERVICE_NAME` | `yomu-backend-rust` | Service identifier |
+| `OTEL_ENVIRONMENT` | `development` | Deployment environment |
+| `OTEL_TRACES_SAMPLER_ARG` | `0.1` | Trace sampling rate (0.0-1.0) |
+| `GRAFANA_API_KEY` | - | Bearer token for Grafana Cloud |
+
+**Trace Context:**
+- Service name, environment, version
+- HTTP method, path, status code
+- Database query duration
+- Cache operations
+
+### 22.5 Sentry Error Tracking
+
+**Integration:** Full error tracking with APM capabilities
+
+**Features:**
+- Automatic error capturing in Axum handlers
+- `tracing` integration for structured errors
+- Stack trace collection with source context
+- Release/environment tagging
+- Performance monitoring (APM)
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENTRY_DSN` | - | Sentry Data Source Number |
+| `SENTRY_ENVIRONMENT` | `development` | Deployment environment |
+
+**Performance Spans:**
+- HTTP request lifecycle
+- Database queries
+- Redis operations
+- External API calls
+
+### 22.6 Health Check Endpoint
+
+**Endpoint:** `GET /health`
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "postgres": "connected",
+  "redis": "connected"
+}
+```
+
+**Checks:**
+- PostgreSQL connection pool availability
+- Redis connection availability
+
+### 22.7 CI Observability Integration
+
+**cargo-nextest:**
+- Faster test execution with parallel workers
+- Enhanced failure reporting with interleaved output
+- JUnit XML export for CI systems
+
+**cargo-audit:**
+- Daily vulnerability scanning in CI
+- Advisory database updates
+- Immediate notification for new vulnerabilities
+
+**GitHub Actions Workflows:**
+- `ci.yml` - Format, clippy, doc, tests, Docker build
+- `security-audit.yml` - RustSec vulnerability scanning
+- `release.yml` - Multi-platform Docker image to GHCR
+
+---
+
+## 23. Future Considerations
 
 ### 22.1 Scalability
 
