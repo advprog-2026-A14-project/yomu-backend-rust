@@ -85,12 +85,14 @@ mod tests {
 
     #[async_trait]
     impl UserRepository for MockUserRepository {
-        async fn insert_shadow_user(&self, user: &ShadowUser) -> Result<(), AppError> {
+        async fn insert_shadow_user(&self, _user: &ShadowUser) -> Result<(), AppError> {
             if self.insert_should_fail {
                 return Err(AppError::InternalServer("Insert failed".to_string()));
             }
             if self.insert_should_panic {
-                panic!("Database connection lost");
+                return Err(AppError::InternalServer(
+                    "Database connection lost".to_string(),
+                ));
             }
             Ok(())
         }

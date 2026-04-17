@@ -41,6 +41,16 @@ impl IntoResponse for LeagueError {
     }
 }
 
+impl From<AppError> for LeagueError {
+    fn from(err: AppError) -> Self {
+        match err {
+            AppError::InternalServer(msg) => LeagueError::ClanNotFound(msg),
+            AppError::BadRequest(msg) => LeagueError::UserNotInAnyClan(msg),
+            AppError::NotFound(msg) => LeagueError::ClanNotFound(msg),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,15 +74,5 @@ mod tests {
         let error = LeagueError::ClanNotFound("clan_abc".to_string());
         let response = error.into_response();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    }
-}
-
-impl From<AppError> for LeagueError {
-    fn from(err: AppError) -> Self {
-        match err {
-            AppError::InternalServer(msg) => LeagueError::ClanNotFound(msg),
-            AppError::BadRequest(msg) => LeagueError::UserNotInAnyClan(msg),
-            AppError::NotFound(msg) => LeagueError::ClanNotFound(msg),
-        }
     }
 }
