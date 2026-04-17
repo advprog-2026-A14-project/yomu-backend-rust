@@ -109,6 +109,8 @@ jobs:
             -e DATABASE_URL=postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test \
             -e REDIS_URL=redis://localhost:6379 \
             -e RUST_LOG=info \
+            -e JAVA_CORE_URL=http://localhost:8081 \
+            -e JAVA_CORE_API_KEY=test-api-key \
             ${{ env.REGISTRY }}/$IMAGE_NAME:latest
           
           sleep 15
