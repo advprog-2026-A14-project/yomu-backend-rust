@@ -27,7 +27,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lowercase IMAGE_NAME
-        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
+        run: |
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -76,7 +77,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lowercase IMAGE_NAME
-        run: echo "IMAGE_NAME=${{ github.repository }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
+        run: |
+          echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -86,11 +88,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull image
-        run: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: docker pull ${{ env.REGISTRY }}/$IMAGE_NAME:latest
 
       - name: Health check
         run: |
-          docker run -d --name test-app -p 8080:8080 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # Pakai $IMAGE_NAME agar konsisten lowercase
+          docker run -d --name test-app -p 8080:8080 ${{ env.REGISTRY }}/$IMAGE_NAME:latest
           sleep 10
           curl -f http://localhost:8080/health || (docker logs test-app && exit 1)
 
