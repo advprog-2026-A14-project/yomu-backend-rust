@@ -53,9 +53,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install cargo-deny
-        run: |
-          curl -LsSf https://raw.githubusercontent.com/EmbarkStudios/cargo-deny/main/install.sh | sh -s -- --prefix ~/.cargo
-
       - name: Run cargo deny check
-        run: ~/.cargo/bin/cargo-deny check advisories licenses bans
+        run: cargo deny check advisories licenses bans
