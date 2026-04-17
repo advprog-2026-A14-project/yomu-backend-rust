@@ -1,5 +1,20 @@
+[graph]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+all-features = true
+
 [advisories]
 ignore = []
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+deny = []
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
 
 [licenses]
 confidence-threshold = 0.95
@@ -9,29 +24,11 @@ allow = [
     "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "BSD-3-Clause-Clarity",
     "ISC",
     "Zlib",
     "Unlicense",
     "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
-    "Unicode-3.0-DFS-2016",
 ]
 exceptions = []
-
-[database]
-fetch = true
-stale = false
-
-[output]
-format = "terminal"
-quiet = false
-show_tree = true
-
-[yanked]
-enabled = true
-
-[graph]
-targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
-all-features = true
