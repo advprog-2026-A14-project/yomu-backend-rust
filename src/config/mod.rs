@@ -2,6 +2,7 @@ pub mod database;
 use std::env;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
@@ -12,6 +13,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
+    #[allow(clippy::panic)]
     pub fn load() -> Self {
         let _ = dotenvy::dotenv();
 
@@ -19,7 +21,7 @@ impl AppConfig {
             host: get_env("APP_HOST", "0.0.0.0"),
             port: get_env("APP_PORT", "8080")
                 .parse()
-                .expect("APP_PORT must be a number"),
+                .unwrap_or_else(|_| panic!("APP_PORT must be a number")),
             database_url: get_env_strict("DATABASE_URL"),
             redis_url: get_env_strict("REDIS_URL"),
             java_core_url: get_env_strict("JAVA_CORE_URL"),
@@ -32,6 +34,7 @@ fn get_env(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+#[allow(clippy::panic)]
 fn get_env_strict(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("Missing required environment variable: {}", key))
 }

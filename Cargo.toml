@@ -2,7 +2,9 @@
 name = "yomu-backend-rust"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Yomu Backend Rust"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 
@@ -16,7 +18,7 @@ tokio = { version = "1.49.0", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.138"
 
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "macros", "migrate"] }
 
 redis = { version = "1.0.4", features = ["tokio-comp"] }
 
@@ -28,12 +30,31 @@ dotenvy = "0.15.7"
 thiserror = "2.0.18"
 anyhow = "1.0.95"
 
+prometheus-client = "0.24"
+axum-prometheus = "0.10"
+
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# OpenTelemetry
+axum-tracing-opentelemetry = "0.32"
+opentelemetry-otlp = { version = "0.28", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.28"
+
+# Sentry
+sentry = { version = "0.47", features = ["tower", "backtrace", "tracing"] }
+sentry-tower = "0.47"
 
 validator = { version = "0.20.0", features = ["derive"] }
 
-reqwest = { version = "0.13.2", features = ["json"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["json"] }
+async-trait = "0.1"
+
+utoipa = { version = "5.4.0", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -42,5 +63,45 @@ dead_code = "warn"
 [lints.clippy]
 unwrap_used = "warn"
 expect_used = "warn"
-todo = "allow"
-unimplemented = "allow"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+panic = "warn"
+
+[profile.ci]
+inherits = "dev"
+opt-level = 0
+debug = false
+strip = false
+lto = false
+codegen-units = 16
+incremental = true
+
+[dev-dependencies]
+mockall = "0.14.0"
+async-trait = "0.1"
+proptest = "1.9"
+
+[[test]]
+name = "usecase_test"
+path = "tests/modules/league/usecase_test.rs"
+
+[[test]]
+name = "infrastructure_test"
+path = "tests/modules/league/infrastructure_test.rs"
+
+[[test]]
+name = "presentation_test"
+path = "tests/modules/league/presentation_test.rs"
+
+[[test]]
+name = "user_sync_usecase_test"
+path = "tests/modules/user_sync/usecase_test.rs"
+
+[[test]]
+name = "user_sync_infrastructure_test"
+path = "tests/modules/user_sync/infrastructure_test.rs"
+
+[[test]]
+name = "user_sync_presentation_test"
+path = "tests/modules/user_sync/presentation_test.rs"

@@ -3,12 +3,14 @@ mod modules;
 mod shared;
 
 use crate::shared::domain::base_error::AppError;
+use crate::shared::infrastructure::logging::init_logging;
+use crate::shared::infrastructure::metrics::routes::metrics_routes;
+use crate::shared::infrastructure::telemetry::{init_telemetry, init_telemetry_subscriber};
 use crate::shared::utils::response::ApiResponse;
-use axum::{Router, extract::State, http::StatusCode, response::Json, routing::get};
-use redis::aio::MultiplexedConnection;
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use std::{net::SocketAddr, time::Duration};
+use axum::{Extension, Router, extract::State, response::Json, routing::get};
+use axum_prometheus::PrometheusMetricLayer;
+use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -17,30 +19,58 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+use yomu_backend_rust::{ApiDoc, AppMetrics, AppState, HealthResponse};
 
-#[derive(Clone)]
-pub struct AppState {
-    pub db: PgPool,
-    pub redis: MultiplexedConnection,
-}
-
-#[derive(Serialize, Deserialize)]
-struct HealthResponse {
-    status: String,
-    version: String,
-}
-
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Server is healthy")
+    ),
+    tag = "health"
+)]
 async fn health_check(
-    State(_state): State<AppState>,
-) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
+    State(state): State<AppState>,
+) -> (axum::http::StatusCode, Json<ApiResponse<HealthResponse>>) {
+    let postgres_status = match sqlx::query("SELECT 1").fetch_one(&state.db).await {
+        Ok(_) => "connected".to_string(),
+        Err(e) => format!("error: {}", e),
+    };
+
+    let mut redis_conn = state.redis.clone();
+    let redis_status = match redis::cmd("PING")
+        .query_async::<String>(&mut redis_conn)
+        .await
+    {
+        Ok(resp) if resp == "PONG" => "connected".to_string(),
+        Ok(resp) => resp,
+        Err(e) => format!("error: {}", e),
+    };
+
+    let overall_status = if postgres_status == "connected" && redis_status == "connected" {
+        "healthy"
+    } else {
+        "unhealthy"
+    };
+
     let health_data = HealthResponse {
-        status: "healthy".to_string(),
+        status: overall_status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        postgres: postgres_status,
+        redis: redis_status,
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
 
-    (StatusCode::OK, Json(response))
+    let status_code = if overall_status == "healthy" {
+        axum::http::StatusCode::OK
+    } else {
+        axum::http::StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (status_code, Json(response))
 }
 
 async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {
@@ -49,20 +79,26 @@ async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {
     ))
 }
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "yomu_backend_rust=debug,tower_http=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+fn main() {
+    let _log_guard = init_logging(None);
 
     tracing::info!("Starting Yomu Engine Rust...");
 
-    let app_config = config::AppConfig::load();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
 
+    rt.block_on(async_main_internal());
+}
+
+async fn async_main_internal() {
+    let _tracer_provider = init_telemetry().expect("Failed to initialize telemetry");
+    init_telemetry_subscriber();
+    async_main(config::AppConfig::load()).await;
+}
+
+async fn async_main(app_config: config::AppConfig) {
     let db_pool = match config::database::init_postgres_pool(&app_config.database_url).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -86,15 +122,20 @@ async fn main() {
         }
     };
 
+    let metrics = Arc::new(AppMetrics::new());
+    let (prometheus_layer, _) = PrometheusMetricLayer::pair();
+
     let state = AppState {
         db: db_pool,
         redis: redis_pool,
+        metrics: metrics.clone(),
     };
 
     let middleware_stack = ServiceBuilder::new()
+        .layer(prometheus_layer)
         .layer(TraceLayer::new_for_http())
         .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
+            axum::http::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(10),
         ))
         .layer(
@@ -104,32 +145,47 @@ async fn main() {
                 .allow_headers(Any),
         );
 
-    let api_v1_router = Router::new();
-    let internal_api_router = Router::new().nest(
-        "/users",
-        modules::user_sync::presentation::routes::user_sync_routes(),
-    );
+    let api_v1_router = Router::new().merge(modules::league::presentation::routes::league_routes());
+    let internal_api_router =
+        Router::new().merge(modules::user_sync::presentation::routes::user_sync_routes());
+
+    let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/error", get(simulate_error))
+        .merge(swagger)
+        .merge(metrics_routes())
         .nest("/api/v1", api_v1_router)
         .nest("/api/internal", internal_api_router)
         .with_state(state)
-        .layer(middleware_stack);
+        .layer(middleware_stack)
+        .layer(Extension(metrics))
+        .layer(OtelAxumLayer::default());
 
+    #[allow(clippy::expect_used)]
     let addr: SocketAddr = format!("{}:{}", app_config.host, app_config.port)
         .parse()
         .expect("Invalid host/port configuration");
 
     tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to bind TCP listener on {}: {}", addr, e);
+            std::process::exit(1);
+        });
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            tracing::error!("Axum server error: {}", e);
+            std::process::exit(1);
+        });
 }
 
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
