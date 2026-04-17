@@ -9,7 +9,10 @@ ignore = []
 multiple-versions = "deny"
 wildcards = "deny"
 deny = []
-skip = []
+skip = [
+    { crate = "axum@0.7.9", reason = "transitive from opentelemetry-otlp, direct dep uses 0.8.9" },
+    { crate = "axum-core@0.4.5", reason = "transitive from opentelemetry-otlp" },
+]
 skip-tree = []
 
 [sources]
@@ -30,5 +33,7 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+    "BSL-1.0",
 ]
 exceptions = []
