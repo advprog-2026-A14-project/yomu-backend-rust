@@ -53,5 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run cargo deny check
-        run: cargo deny check advisories licenses bans
+      - name: Install cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses bans
