@@ -141,6 +141,24 @@ jobs:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
+      - name: Run user_sync use case tests
+        run: cargo test --test user_sync_usecase_test
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run user_sync infrastructure tests
+        run: cargo test --test user_sync_infrastructure_test
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run user_sync presentation tests
+        run: cargo test --test user_sync_presentation_test
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
       - name: Check sqlx prepare (Offline Mode)
         run: cargo sqlx prepare --workspace --check
         env:

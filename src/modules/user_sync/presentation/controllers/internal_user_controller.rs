@@ -18,6 +18,18 @@ pub struct SyncUserResponseDto {
     pub message: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/internal/users/sync",
+    request_body = SyncUserRequestDto,
+    responses(
+        (status = 201, description = "User synced successfully"),
+        (status = 400, description = "Invalid request"),
+        (status = 409, description = "User already exists (returns existing user)"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "User Sync"
+)]
 pub async fn sync_user_handler(
     State(state): State<AppState>,
     Json(dto): Json<SyncUserRequestDto>,

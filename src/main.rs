@@ -130,10 +130,8 @@ async fn main() {
         );
 
     let api_v1_router = Router::new().merge(modules::league::presentation::routes::league_routes());
-    let internal_api_router = Router::new().nest(
-        "/users",
-        modules::user_sync::presentation::routes::user_sync_routes(),
-    );
+    let internal_api_router =
+        Router::new().merge(modules::user_sync::presentation::routes::user_sync_routes());
 
     let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
 

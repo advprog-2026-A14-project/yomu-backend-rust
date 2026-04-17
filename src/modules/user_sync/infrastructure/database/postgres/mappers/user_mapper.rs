@@ -17,10 +17,7 @@ impl UserMapper {
     pub fn from_row(row: &ShadowUserRow) -> Result<ShadowUser, String> {
         let total_score = row.total_score.unwrap_or(0);
 
-        Ok(ShadowUser {
-            user_id: row.user_id,
-            total_score,
-        })
+        Ok(ShadowUser::with_id(row.user_id, total_score))
     }
 }
 
@@ -40,7 +37,7 @@ mod tests {
         assert!(result.is_ok());
 
         let user = result.unwrap();
-        assert_eq!(user.total_score, 100);
+        assert_eq!(user.total_score(), 100);
     }
 
     #[test]
@@ -55,7 +52,7 @@ mod tests {
         assert!(result.is_ok());
 
         let user = result.unwrap();
-        assert_eq!(user.total_score, 0);
+        assert_eq!(user.total_score(), 0);
     }
 
     #[test]
@@ -70,6 +67,6 @@ mod tests {
         assert!(result.is_ok());
 
         let user = result.unwrap();
-        assert_eq!(user.total_score, 50);
+        assert_eq!(user.total_score(), 50);
     }
 }
