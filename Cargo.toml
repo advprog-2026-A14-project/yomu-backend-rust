@@ -67,6 +67,15 @@ unimplemented = "warn"
 dbg_macro = "warn"
 panic = "warn"
 
+[profile.ci]
+inherits = "dev"
+opt-level = 0
+debug = false
+strip = false
+lto = false
+codegen-units = 16
+incremental = true
+
 [dev-dependencies]
 mockall = "0.14.0"
 async-trait = "0.1"
