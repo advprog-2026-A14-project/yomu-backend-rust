@@ -111,53 +111,69 @@ jobs:
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
 
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Run library unit tests
-        run: cargo test --lib
+        run: cargo nextest run --lib --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run binary unit tests
-        run: cargo test --bin yomu-backend-rust
+        run: cargo nextest run --bin yomu-backend-rust --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run infrastructure tests
-        run: cargo test --test infrastructure_test
+        run: cargo nextest run --test infrastructure_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run presentation tests
-        run: cargo test --test presentation_test
+        run: cargo nextest run --test presentation_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run use case tests
-        run: cargo test --test usecase_test
+        run: cargo nextest run --test usecase_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run user_sync use case tests
-        run: cargo test --test user_sync_usecase_test
+        run: cargo nextest run --test user_sync_usecase_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run user_sync infrastructure tests
-        run: cargo test --test user_sync_infrastructure_test
+        run: cargo nextest run --test user_sync_infrastructure_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
 
       - name: Run user_sync presentation tests
-        run: cargo test --test user_sync_presentation_test
+        run: cargo nextest run --test user_sync_presentation_test --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
+
+      - name: Run doc tests
+        run: cargo test --doc --all-features
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-results-${{ matrix.os }}
+          path: |
+            target/nextest/*.xml
+            target/nextest/*.log
+          retention-days: 7
 
       - name: Check sqlx prepare (Offline Mode)
         run: cargo sqlx prepare --workspace --check
