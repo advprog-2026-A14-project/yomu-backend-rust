@@ -21,6 +21,10 @@ impl LeaderboardRedisRepo {
 
 #[async_trait]
 impl LeaderboardCache for LeaderboardRedisRepo {
+    /// Increments clan score in Redis using ZINCRBY command.
+    ///
+    /// Updates the global leaderboard (not tier-specific).
+    /// Thread-safe atomic increment operation.
     async fn update_clan_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError> {
         let mut con = self.conn.clone();
 
@@ -38,6 +42,10 @@ impl LeaderboardCache for LeaderboardRedisRepo {
         Ok(())
     }
 
+    /// Fetches top clans from Redis sorted set using ZREVRANGE.
+    ///
+    /// Redis key format: "leaderboard:{tier}"
+    /// Returns clans with ranks 1-10 by default. Score is parsed as i64.
     async fn get_top_clans(
         &self,
         tier: &str,

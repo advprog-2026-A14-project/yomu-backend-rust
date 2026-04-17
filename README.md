@@ -1,309 +1,1059 @@
 # Yomu Backend Rust
 
-A high-performance, asynchronous REST API backend built with Rust, designed to power the Yomu backend services platform. This backend handles core features including clan management, gamification systems, and user synchronization with the Java Core platform.
+## Version 0.1.0
 
-## Table of Contents
-
-- [Project Overview](#project-overview)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [How to Run](#how-to-run)
-- [Development Workflow](#development-workflow)
-- [Useful Commands \& Troubleshooting](#useful-commands--troubleshooting)
-- [API Endpoints](#api-endpoints)
-- [Architecture](#architecture)
-- [Modules Summary](#modules-summary)
-- [Database Schema](#database-schema)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Dependencies](#dependencies)
-- [CI/CD](#cicd)
-- [Security Considerations](#security-considerations)
-- [Performance Optimization](#performance-optimization)
-- [Contributing](#contributing)
-- [License](#license)
+High-performance gamification engine API built with Rust, Axum, PostgreSQL, and Redis. Part of the Yomu polyglot learning platform.
 
 ---
 
-## Project Overview
-lorem ipsum
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Features](#features)
+3. [Technology Stack](#technology-stack)
+4. [Architecture Diagram](#architecture-diagram)
+5. [Prerequisites](#prerequisites)
+6. [Installation](#installation)
+7. [Configuration](#configuration)
+8. [Database Setup](#database-setup)
+9. [Running the Application](#running-the-application)
+10. [Docker Compose](#docker-compose)
+11. [API Documentation](#api-documentation)
+12. [API Response Format](#api-response-format)
+13. [Testing](#testing)
+14. [Development Workflow](#development-workflow)
+15. [Code Quality](#code-quality)
+16. [Database Migrations](#database-migrations)
+17. [Troubleshooting](#troubleshooting)
+18. [Deployment](#deployment)
+19. [Monitoring](#monitoring)
+20. [Security](#security)
+21. [CI/CD](#cicd)
+22. [Contributing](#contributing)
+23. [License](#license)
+24. [Links](#links)
+
+---
+
+## Overview
+
+Yomu Backend Rust is the gamification microservice of the Yomu learning platform. It handles clan management, leaderboards, achievements, missions, and user synchronization with the Java-based core service.
+
+The service exposes REST APIs consumed by the Next.js frontend through a BFF (Backend for Frontend) proxy pattern. User data flows from the Java backend via an outbox synchronization pattern.
+
+### Key Responsibilities
+
+- **Clan Management**: Create clans, join clans, view clan details
+- **Leaderboards**: Real-time clan rankings by tier (Bronze, Silver, Gold, Diamond)
+- **Gamification**: Achievements, daily missions, reward points
+- **User Sync**: Shadow users synced from Java backend for gamification tracking
+
+---
+
+## Features
+
+### League Module
+
+- Create new clans with a leader
+- Join existing clans
+- View clan details (members, active buffs/debuffs, tier)
+- Real-time leaderboards by tier
+- User tier information retrieval
+
+### Gamification Module
+
+- Achievement tracking with milestone targets
+- Daily missions with progress tracking
+- Reward points system
+- Quiz history synchronization
+
+### User Sync Module
+
+- Shadow user creation from Java backend
+- Quiz history synchronization
+- Idempotent sync operations
+
+### Infrastructure Features
+
+- Health check endpoint with PostgreSQL and Redis status
+- Swagger UI API documentation at `/swagger-ui`
+- Graceful shutdown handling
+- Request timeout middleware (10 seconds)
+- CORS support for all origins
+- Structured JSON logging with tracing
+
 ---
 
 ## Technology Stack
 
-### Core Technologies
-
-| Category | Technology | Version | Purpose |
+| Category | Dependency | Version | Purpose |
 |----------|------------|---------|---------|
-| **Language** | Rust | 1.75+ | Primary programming language |
-| **Runtime** | Tokio | 1.49.0 | Asynchronous runtime |
-| **Web Framework** | Axum | 0.8.8 | REST API framework |
-| **Database** | PostgreSQL | 14+ | Primary data store |
-| **Cache** | Redis | 7+ | Caching and pub/sub |
-| **ORM** | SQLx | 0.8.6 | Type-safe database access |
+| **Web Framework** | axum | 0.8.8 | HTTP server with type-safe routing |
+| **Middleware** | tower | 0.5.2 | Middleware composability |
+| **Middleware** | tower-http | 0.6.2 | CORS, tracing, timeout layers |
+| **Async Runtime** | tokio | 1.49.0 | Multi-threaded runtime |
+| **Serialization** | serde | 1.0.228 | JSON serialization/deserialization |
+| **Database ORM** | sqlx | 0.8.6 | Async PostgreSQL with compile-time checks |
+| **Redis Client** | redis | 1.0.4 | Redis connection for leaderboard caching |
+| **UUID** | uuid | 1.21.0 | UUID generation and serialization |
+| **Date/Time** | chrono | 0.4.44 | DateTime handling with timezone support |
+| **Environment** | dotenvy | 0.15.7 | Environment variable loading |
+| **Error Handling** | thiserror | 2.0.18 | Custom error types with derive macros |
+| **Error Handling** | anyhow | 1.0.95 | Flexible error context for applications |
+| **Logging** | tracing | 0.1.41 | Structured logging facade |
+| **Logging** | tracing-subscriber | 0.3.22 | Logging subscriber with env filter |
+| **Validation** | validator | 0.20.0 | Request validation with derive macros |
+| **HTTP Client** | reqwest | 0.13.2 | HTTP client for internal service calls |
+| **Async Traits** | async-trait | 0.1 | Async trait methods |
+| **API Documentation** | utoipa | 5.4.0 | OpenAPI generation |
+| **Swagger UI** | utoipa-swagger-ui | 9.0.2 | Swagger UI integration |
+| **Testing** | mockall | 0.14.0 | Mocking for trait tests |
 
-### Supporting Libraries
+### Rust Edition and MSRV
 
-| Category | Library | Purpose |
-|----------|---------|---------|
-| **Serialization** | Serde, serde_json | JSON serialization/deserialization |
-| **Validation** | Validator | Request validation |
-| **Error Handling** | thiserror, anyhow | Error propagation |
-| **Logging** | tracing, tracing-subscriber | Structured logging |
-| **Configuration** | config, dotenv | Environment configuration |
-| **HTTP Client** | reqwest | External HTTP requests |
-| **Date/Time** | chrono | Date/time handling |
-| **Unique IDs** | uuid | Unique identifier generation |
+- **Edition**: 2024
+- **MSRV (Minimum Supported Rust Version)**: 1.85
 
 ---
 
-## Project Structure
+## Architecture Diagram
 
-```
-yomu-backend-rust/
-├── Cargo.toml                 # Rust package manifest and dependencies
-├── Cargo.lock                 # Dependency lock file
-├── .env.example               # Environment variables template
-├── .env                       # Local environment variables (not committed)
-├── .gitignore                 # Git ignore patterns
-├── README.md                  # This file
-├── Dockerfile                 # Production Docker image
-├── Dockerfile.dev             # Development Docker image with hot reload
-├── docker-compose.yml         # Docker Compose orchestration
-├── rustfmt.toml               # Rust formatter configuration
-├── .clippy.toml               # Clippy linter configuration
-├── .github/
-│   └── workflows/
-│       └── ci.yml             # GitHub Actions CI/CD pipeline
-│
-└── src/
-    ├── main.rs                    # Application entry point
-    ├── lib.rs                     # Library root exports
-    ├── config/                    # Configuration management
-    │   ├── mod.rs
-    │   └── settings.rs            # Environment & connection settings
-    │
-    ├── shared/                    # Shared Kernel (cross-module utilities)
-    │   ├── mod.rs
-    │   ├── domain/               # Base types/structs for Domain layer
-    │   │   ├── mod.rs
-    │   │   ├── entity.rs         # Base entity trait and implementations
-    │   │   └── value_object.rs   # Value object utilities
-    │   │
-    │   └── utils/                 # Common helpers
-    │       ├── mod.rs
-    │       ├── error.rs           # Shared error types
-    │       └── response.rs        # API response utilities
-    │
-    └── modules/                   # BOUNDED CONTEXTS (Feature modules)
-        ├── mod.rs                 # Module exports
-        │
-        ├── league/               # Clan & League module
-        │   ├── mod.rs
-        │   ├── domain/           # League domain layer
-        │   │   ├── mod.rs
-        │   │   ├── entities/     # Clan, Member entities
-        │   │   ├── value_objects/# ClanId, MemberRole
-        │   │   └── ports/        # Repository traits
-        │   ├── application/      # League application layer
-        │   │   ├── mod.rs
-        │   │   ├── commands/    # Write operations
-        │   │   ├── queries/     # Read operations
-        │   │   └── dtos/         # Data transfer objects
-        │   ├── infrastructure/  # League infrastructure layer
-        │   │   ├── mod.rs
-        │   │   ├── persistence/ # SQLx adapters
-        │   │   └── cache/        # Redis adapters
-        │   └── presentation/     # League presentation layer
-        │       ├── mod.rs
-        │       ├── controllers/ # Axum handlers
-        │       └── routes/      # Route definitions
-        │
-        ├── gamification/         # Achievements & Missions module
-        │   ├── mod.rs
-        │   ├── domain/
-        │   │   ├── mod.rs
-        │   │   ├── entities/    # Achievement, Mission, Reward
-        │   │   └── ports/
-        │   ├── application/
-        │   │   ├── mod.rs
-        │   │   ├── commands/
-        │   │   └── dtos/
-        │   ├── infrastructure/
-        │   │   └── persistence/
-        │   └── presentation/
-        │       ├── controllers/
-        │       └── routes/
-        │
-        └── user_sync/            # User Synchronization module
-            ├── mod.rs
-            ├── domain/
-            │   ├── mod.rs
-            │   ├── entities/    # ShadowUser entity
-            │   └── ports/
-            ├── application/
-            │   ├── mod.rs
-            │   ├── commands/
-            │   └── dtos/
-            ├── infrastructure/
-            │   └── persistence/
-            └── presentation/
-                ├── controllers/
-                └── routes/
+### System Overview
+
+```mermaid
+flowchart LR
+    subgraph Frontend["Frontend (Next.js)"]
+        UI["React UI"]
+    end
+
+    subgraph RustBackend["Yomu Engine (Rust)"]
+        API["BFF API Proxy"]
+        subgraph Modules["Bounded Contexts"]
+            League["League Module\n- Clans\n- Leaderboards"]
+            Gamification["Gamification Module\n- Achievements\n- Missions\n- Rewards"]
+            UserSync["User Sync Module\n- Shadow Users\n- Quiz History"]
+        end
+    end
+
+    subgraph JavaBackend["Java Backend"]
+        Outbox["Outbox Pattern\n(Sync Events)"]
+    end
+
+    subgraph Data["Data Layer"]
+        PG[("PostgreSQL")]
+        Redis[("Redis")]
+    end
+
+    UI --> API
+    API --> League
+    API --> Gamification
+    Outbox -->|"REST sync"| UserSync
+    League --> PG
+    League --> Redis
+    Gamification --> PG
+    UserSync --> PG
 ```
 
-### Directory Structure Explanation
+### Module Architecture (Hexagonal/Ports & Adapters)
 
-The project follows a **Feature-Based (Modular)** directory structure that organizes code by business domain (bounded context) rather than technical layer. This approach provides:
+```mermaid
+flowchart TD
+    subgraph Presentation["Presentation Layer"]
+        Controllers["Controllers\n(Axum Handlers)"]
+        Routes["Routes"]
+    end
 
-1. **Encapsulation**: Each module is self-contained with its own domain logic
-2. **Clear Boundaries**: Module dependencies are explicit and controlled
-3. **Scalability**: New features can be added as new modules
-4. **Team Independence**: Teams can work on different modules without conflicts
+    subgraph Application["Application Layer"]
+        UseCases["Use Cases\n(Business Logic)"]
+        DTOs["DTOs\n(Data Transfer)"]
+    end
 
-Within each module, we apply **Hexagonal + Clean Architecture** (Ports & Adapters) with four distinct layers:
+    subgraph Domain["Domain Layer"]
+        Entities["Entities"]
+        Traits["Repository Traits\n(Ports)"]
+        Errors["Error Types"]
+    end
 
-| Layer | Purpose | Dependencies |
-|-------|---------|--------------|
-| `domain/` | Pure business logic, entities, value objects, ports (traits) | None (zero external dependencies) |
-| `application/` | Use cases, DTOs, command/query handlers | Domain layer only |
-| `infrastructure/` | Adapters for external services (DB, cache, HTTP) | Application layer + external crates |
-| `presentation/` | HTTP controllers and route definitions | Application layer + web framework |
+    subgraph Infrastructure["Infrastructure Layer"]
+        Postgres["PostgreSQL Adapter\n(SQLx)"]
+        Redis["Redis Adapter"]
+        HTTP["HTTP Client"]
+    end
 
+    Routes --> Controllers
+    Controllers --> UseCases
+    UseCases --> DTOs
+    UseCases --> Traits
+    UseCases --> Entities
+    Entities --> Errors
+    Traits <--> Postgres
+    Traits <--> Redis
+    Traits <--> HTTP
+```
 
-## Getting Started
+### API Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as API Route
+    participant Controller
+    participant UseCase as Use Case
+    participant Repo as Repository
+    participant DB as Database
+
+    Client->>API: POST /clans {name, leader_id}
+    API->>Controller: Json<CreateClanDto>
+    Controller->>UseCase: execute(dto)
+    UseCase->>Repo: is_user_in_any_clan(leader_id)
+    Repo->>DB: SELECT COUNT(*) FROM clan_members
+    DB-->>Repo: count
+    Repo-->>UseCase: bool
+    alt user already in clan
+        UseCase-->>Controller: Err(AppError::BadRequest)
+        Controller-->>Client: 400 Bad Request
+    else user not in clan
+        UseCase->>Repo: create_clan(clan)
+        Repo->>DB: INSERT INTO clans
+        UseCase->>Repo: add_member(member)
+        Repo->>DB: INSERT INTO clan_members
+        Repo-->>UseCase: Ok(())
+        UseCase-->>Controller: Ok(Clan)
+        Controller-->>Client: 201 Created
+    end
+```
+
+### Directory Structure
+
+```mermaid
+graph TD
+    root["yomu-backend-rust/"]
+    root --> src["src/"]
+    root --> migrations["migrations/"]
+    root --> tests["tests/"]
+    root --> github[".github/"]
+    root --> docs["docs/"]
+
+    src --> main["main.rs"]
+    src --> lib["lib.rs"]
+    src --> config["config/"]
+    src --> shared["shared/"]
+    src --> modules["modules/"]
+
+    config --> config_mod["mod.rs"]
+    config --> database["database.rs"]
+
+    shared --> domain["domain/"]
+    shared --> utils["utils/"]
+    domain --> base_error["base_error.rs"]
+    utils --> response["response.rs"]
+
+    modules --> league["league/"]
+    modules --> gamification["gamification/"]
+    modules --> user_sync["user_sync/"]
+
+    league --> league_domain["domain/"]
+    league --> league_app["application/"]
+    league --> league_infra["infrastructure/"]
+    league --> league_present["presentation/"]
+
+    league_domain --> entities["entities/"]
+    league_domain --> repos["repositories/"]
+    league_domain --> errors["errors/"]
+
+    gamification --> gama_domain["domain/"]
+    gama_domain --> entities_g["entities/"]
+    gama_domain --> repos_g["repositories/"]
+
+    user_sync --> user_domain["domain/"]
+    user_domain --> entities_u["entities/"]
+    user_domain --> repos_u["repositories/"]
+    user_sync --> user_app["application/"]
+    user_sync --> user_infra["infrastructure/"]
+    user_sync --> user_present["presentation/"]
+```
+
+---
+
+## Prerequisites
+
+### Required Software
+
+| Software | Version | Purpose |
+|----------|---------|---------|
+| Rust | 1.85+ | Compiler toolchain |
+| Cargo | Latest | Package manager |
+| Docker | 24.0+ | Container runtime |
+| Docker Compose | 2.20+ | Multi-container orchestration |
+| PostgreSQL | 18+ | Primary database |
+| Redis | 8.0+ | Leaderboard cache |
+
+### Optional Software
+
+| Software | Purpose |
+|----------|---------|
+| sqlx-cli | Database migration management |
+| cargo-watch | Hot reload during development |
+| cargo-tarpaulin | Code coverage reporting |
+
+---
+
+## Installation
 
 ### Clone the Repository
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/yomu-backend-rust.git
-
-# Navigate to project directory
+git clone <repository-url>
 cd yomu-backend-rust
 ```
 
-### Environment Setup
+### Install Rust Dependencies
 
 ```bash
-# 1. Copy the example environment file
-cp .env.example .env
-
-# 2. Review and update .env with your settings
-# The default values work with docker-compose out of the box
-nano .env  # or your preferred editor
+cargo fetch
 ```
 
-### Environment Variables Reference
+### Copy Environment Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_ENV` | Application environment (development, production) | `development` |
-| `APP_HOST` | Server bind address | `0.0.0.0` |
-| `APP_PORT` | Server port | `8080` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://yomu:yomu_password@postgres:5432/yomu_engine` |
-| `REDIS_URL` | Redis connection string | `redis://redis:6379` |
-| `LOG_LEVEL` | Logging verbosity (trace, debug, info, warn, error) | `info` |
-| `RUST_BACKTRACE` | Enable backtraces (0 or 1) | `1` |
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your configuration values. See [Configuration](#configuration) for details.
+
+### Verify SQLx Offline Mode
+
+```bash
+cargo sqlx prepare --workspace --check
+```
+
+This verifies that all SQL queries compile correctly against the database schema without requiring a live database connection.
 
 ---
 
-## How to Run
+## Configuration
 
-There are three ways to run this project, each suited for different development scenarios.
+All configuration is managed through environment variables. Copy `.env.example` to `.env` and adjust values as needed.
 
-### Option 1: Full Docker (Production Mode)
+### Environment Variables
 
-Best for testing the final build in an isolated, production-like environment. This option builds the application as a static binary and runs it in a minimal container.
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `APP_HOST` | `0.0.0.0` | No | Server bind address |
+| `APP_PORT` | `8080` | No | Server port |
+| `DATABASE_URL` | - | **Yes** | PostgreSQL connection string |
+| `REDIS_URL` | `redis://localhost:6379` | No | Redis connection string |
+| `JAVA_CORE_URL` | - | **Yes** | Java backend URL for internal API calls |
+| `JAVA_CORE_API_KEY` | - | **Yes** | API key for Java backend authentication |
+| `RUST_LOG` | `info` | No | Logging level (trace, debug, info, warn, error) |
+| `RUST_BACKTRACE` | `1` | No | Enable backtraces on panics |
+
+### Example .env File
+
+```env
+# Server Configuration
+APP_HOST=0.0.0.0
+APP_PORT=8080
+
+# Database Configuration
+DATABASE_URL=postgres://yomu:yomu_password@localhost:5432/yomu_engine
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379
+
+# Java Core Service (Internal API)
+JAVA_CORE_URL=http://localhost:8081
+JAVA_CORE_API_KEY=your_api_key_here
+
+# Logging
+RUST_LOG=info
+RUST_BACKTRACE=1
+```
+
+### Connection String Formats
+
+**PostgreSQL**:
+```
+postgresql://username:password@host:port/database_name
+```
+
+**Redis**:
+```
+redis://host:port
+```
+
+---
+
+## Database Setup
+
+### Schema Overview
+
+The database schema consists of these main entity groups:
+
+```mermaid
+erDiagram
+    ENGINE_USER ||--o{ CLAN_MEMBER : has
+    CLAN ||--o{ CLAN_MEMBER : has
+    CLAN ||--o{ CLAN_BUFF : has
+    ENGINE_USER ||--o{ USER_ACHIEVEMENT : earned
+    ACHIEVEMENT ||--o{ USER_ACHIEVEMENT : awarded_to
+    ENGINE_USER ||--o{ USER_MISSION : assigned
+    DAILY_MISSION ||--o{ USER_MISSION : assigned_to
+    ENGINE_USER ||--o{ QUIZ_HISTORY : completed
+```
+
+### Tables
+
+#### engine_users
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PRIMARY KEY | Unique user identifier |
+| total_score | INT | NOT NULL, DEFAULT 0 | User's total gamification score |
+
+#### clans
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique clan identifier |
+| name | VARCHAR(255) | NOT NULL | Clan display name |
+| leader_id | UUID | FOREIGN KEY | Clan founder/leader |
+| tier | VARCHAR(50) | NOT NULL | Clan tier (Bronze/Silver/Gold/Diamond) |
+| total_score | INT | NOT NULL, DEFAULT 0 | Combined clan score |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Creation timestamp |
+
+#### clan_members
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| clan_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to clans table |
+| user_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to engine_users |
+| joined_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Join timestamp |
+
+#### clan_buffs
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique buff identifier |
+| clan_id | UUID | FOREIGN KEY | Reference to clans table |
+| buff_name | VARCHAR(255) | NOT NULL | Name of the buff |
+| multiplier | DECIMAL(5,2) | NOT NULL | Score multiplier value |
+| is_active | BOOLEAN | NOT NULL, DEFAULT true | Whether buff is currently active |
+| expires_at | TIMESTAMPTZ | NOT NULL | When the buff expires |
+
+#### achievements
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique achievement identifier |
+| name | VARCHAR(255) | NOT NULL | Achievement name |
+| milestone_target | INT | NOT NULL | Score target to unlock |
+| achievement_type | VARCHAR(100) | NOT NULL | Category of achievement |
+| reward_points | INT | NOT NULL, DEFAULT 0 | Points awarded on completion |
+
+#### user_achievements
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to engine_users |
+| achievement_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to achievements |
+| current_progress | INT | NOT NULL, DEFAULT 0 | Progress toward milestone |
+| is_completed | BOOLEAN | NOT NULL, DEFAULT false | Completion status |
+| is_shown_on_profile | BOOLEAN | NOT NULL, DEFAULT false | Visibility flag |
+| completed_at | TIMESTAMPTZ | NULL | Completion timestamp |
+
+#### daily_missions
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique mission identifier |
+| description | VARCHAR(255) | NOT NULL | Mission description |
+| target_count | INT | NOT NULL | Number of actions required |
+| date | DATE | NOT NULL | Date mission is active |
+| reward_points | INT | NOT NULL, DEFAULT 0 | Points awarded on claim |
+
+#### user_missions
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to engine_users |
+| mission_id | UUID | PRIMARY KEY, FOREIGN KEY | Reference to daily_missions |
+| current_progress | INT | NOT NULL, DEFAULT 0 | Progress toward completion |
+| is_claimed | BOOLEAN | NOT NULL, DEFAULT false | Reward claim status |
+
+#### quiz_history
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PRIMARY KEY | Unique quiz attempt identifier |
+| user_id | UUID | FOREIGN KEY | Reference to engine_users |
+| article_id | UUID | NOT NULL | Reference to article taken |
+| score | INT | NOT NULL, DEFAULT 0 | Quiz score achieved |
+| accuracy | DECIMAL(5,2) | NOT NULL, DEFAULT 0.00 | Accuracy percentage |
+| completed_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Completion timestamp |
+
+---
+
+## Running the Application
+
+### Method 1: Docker Compose (Recommended)
+
+Start all services with a single command:
 
 ```bash
-# Build and start all services (PostgreSQL, Redis, Application)
 docker compose up -d
-
-# Verify all containers are running
-docker compose ps
-
-# View application logs
-docker compose logs -f app
-
-# Stop all services
-docker compose down
 ```
 
-**Use this when:**
-- You want to test the production build
-- You need an isolated environment
-- You don't want to install Rust locally
+This starts PostgreSQL, Redis, and the application container.
 
-### Option 2: Full Dev Docker (Hot Reload)
+### Method 2: Hybrid (Docker for Infra, Native for App)
 
-Best if you don't want to install Rust on your local machine but want hot-reload functionality during development. This uses `cargo-watch` inside the container.
+Start only infrastructure services:
 
 ```bash
-# Start all services with hot reload enabled
-docker compose up -d dev
-
-# View dev logs (watch for code changes to trigger rebuilds)
-docker compose logs -f dev
-
-# Stop services
-docker compose down
-```
-
-**Use this when:**
-- You don't have Rust installed
-- You want hot-reload without local setup
-- You need consistent development environment across team
-
-### Option 3: Hybrid Development (Recommended)
-
-Best for fast compilation cycles and full IDE support (intellisense, go-to-definition, refactoring). We run infrastructure (DB, Redis) in Docker, but run the Rust application natively.
-
-**Prerequisites:** Rust 1.75+, Docker, and Docker Compose
-
-```bash
-# 1. Copy the environment file (if you haven't already)
-cp .env.example .env
-
-# 2. IMPORTANT: Update .env database credentials to match docker-compose!
-# Change to: DATABASE_URL=postgres://yomu:yomu_password@localhost:5432/yomu_engine
-# Change to: REDIS_URL=redis://localhost:6379
-
-# 3. Start ONLY the infrastructure services (Database & Redis)
 docker compose up -d postgres redis
-
-# 4. Wait a few seconds for services to be ready
-# Then run the Rust server locally
-cargo run
-
-# Or run with hot-reload (requires cargo-watch)
-# Install cargo-watch first if needed
-cargo install cargo-watch
-cargo watch -x run
-
-# 5. Access the application
-# Open http://localhost:8080/health in your browser
 ```
 
-**Use this when:**
-- You have Rust installed
-- You want fast compile times
-- You need full IDE support
-- You want to debug with breakpoints
-
-### Verifying the Application
-
-Once the application is running, verify it's working:
+Run the application natively:
 
 ```bash
-# Health check
-curl http://localhost:8080/health
-
-# Expected response:
-# {"success":true,"message":"Server is running well","data":{"status":"healthy","version":"0.1.0"}}
+cargo run
 ```
+
+### Method 3: Native (Full Local Development)
+
+Requires PostgreSQL and Redis running locally.
+
+```bash
+# Start PostgreSQL on port 5432
+# Start Redis on port 6379
+
+cargo run
+```
+
+### Method 4: Development with Hot Reload
+
+```bash
+docker compose up -d dev
+```
+
+The dev service uses `cargo-watch` to automatically rebuild and restart on source changes.
+
+---
+
+## Docker Compose
+
+### Services Overview
+
+```mermaid
+graph LR
+    subgraph Network["yomu-network"]
+        subgraph Services
+            App["app\n:8080"]
+            Dev["dev\n:8080, :2222"]
+            PG["postgres\n:5432"]
+            Redis["redis\n:6379"]
+        end
+    end
+```
+
+### Service Definitions
+
+#### PostgreSQL
+
+```yaml
+postgres:
+  image: postgres:18-alpine
+  container_name: yomu-postgres
+  restart: unless-stopped
+  environment:
+    POSTGRES_USER: yomu
+    POSTGRES_PASSWORD: yomu_password
+    POSTGRES_DB: yomu_engine
+  ports:
+    - "5432:5432"
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U yomu"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+```
+
+#### Redis
+
+```yaml
+redis:
+  image: redis:8-alpine
+  container_name: yomu-redis
+  restart: unless-stopped
+  ports:
+    - "6379:6379"
+  volumes:
+    - redis_data:/data
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+  command: redis-server --appendonly yes
+```
+
+#### Application (Production)
+
+```yaml
+app:
+  build:
+    context: .
+    dockerfile: Dockerfile
+  container_name: yomu-engine
+  restart: unless-stopped
+  ports:
+    - "8080:8080"
+  environment:
+    - DATABASE_URL=postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+    - REDIS_URL=redis://redis:6379
+    - RUST_LOG=info
+    - RUST_BACKTRACE=1
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+```
+
+#### Development (Hot Reload)
+
+```yaml
+dev:
+  build:
+    context: .
+    dockerfile: Dockerfile.dev
+  container_name: yomu-engine-dev
+  restart: unless-stopped
+  ports:
+    - "8080:8080"
+    - "2222:2222"
+  environment:
+    - DATABASE_URL=postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+    - REDIS_URL=redis://redis:6379
+    - RUST_LOG=debug
+    - RUST_BACKTRACE=1
+  volumes:
+    - .:/app
+    - cargo_cache:/app/target
+```
+
+### Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| `postgres_data` | Persistent PostgreSQL data |
+| `redis_data` | Persistent Redis data (AOF) |
+| `cargo_cache` | Cached Rust compilation artifacts |
+
+### Networking
+
+All services connect through the `yomu-network` bridge network. The application container can reach PostgreSQL at `postgres:5432` and Redis at `redis:6379`.
+
+---
+
+## API Documentation
+
+### API Routes Overview
+
+```mermaid
+mindmap
+    root((Yomu API))
+        /health
+            GET /health
+        /swagger-ui
+            SwaggerUI
+        /api/v1
+            /clans
+                POST /clans
+                GET /clans/:id
+                POST /clans/:id/join
+            /leaderboards
+                GET /leaderboards?tier=X
+            /users/:user_id/tier
+                GET /users/:user_id/tier
+        /api/internal
+            /users/sync
+                POST /users/sync
+```
+
+### Endpoint Reference
+
+#### Health Check
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Returns PostgreSQL and Redis connection status |
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Server is running well",
+  "data": {
+    "status": "healthy",
+    "version": "0.1.0",
+    "postgres": "connected",
+    "redis": "connected"
+  }
+}
+```
+
+#### Public API (`/api/v1`)
+
+##### Create Clan
+
+| Property | Value |
+|----------|-------|
+| Method | `POST` |
+| Endpoint | `/api/v1/clans` |
+| Tag | clans |
+
+**Request Body**:
+```json
+{
+  "name": "Dragon Slayers",
+  "leader_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response** (201 Created):
+```json
+{
+  "success": true,
+  "message": "Clan created successfully",
+  "data": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Dragon Slayers",
+    "leader_id": "550e8400-e29b-41d4-a716-446655440000",
+    "tier": "Bronze",
+    "total_score": 0,
+    "created_at": "2026-04-16T10:30:00Z"
+  }
+}
+```
+
+##### Get Clan Details
+
+| Property | Value |
+|----------|-------|
+| Method | `GET` |
+| Endpoint | `/api/v1/clans/{id}` |
+| Tag | League |
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | UUID | Clan identifier |
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Clan detail retrieved",
+  "data": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "Dragon Slayers",
+    "leader_id": "550e8400-e29b-41d4-a716-446655440000",
+    "tier": "Bronze",
+    "total_score": 1500,
+    "created_at": "2026-04-16T10:30:00Z",
+    "members": [
+      {
+        "user_id": "550e8400-e29b-41d4-a716-446655440000",
+        "role": "Leader",
+        "joined_at": "2026-04-16T10:30:00Z"
+      }
+    ],
+    "active_buffs": [],
+    "active_debuffs": []
+  }
+}
+```
+
+##### Join Clan
+
+| Property | Value |
+|----------|-------|
+| Method | `POST` |
+| Endpoint | `/api/v1/clans/{id}/join` |
+| Tag | clans |
+
+**Request Body**:
+```json
+{
+  "user_id": "660e9500-f30c-52e5-b827-557766551111"
+}
+```
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Joined clan successfully",
+  "data": {
+    "clan_id": "123e4567-e89b-12d3-a456-426614174000",
+    "user_id": "660e9500-f30c-52e5-b827-557766551111",
+    "joined_at": "2026-04-16T11:00:00Z"
+  }
+}
+```
+
+##### Get Leaderboard
+
+| Property | Value |
+|----------|-------|
+| Method | `GET` |
+| Endpoint | `/api/v1/leaderboards` |
+| Tag | leaderboard |
+
+**Query Parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| tier | String | Bronze | Leaderboard tier (Bronze, Silver, Gold, Diamond) |
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Leaderboard fetched successfully",
+  "data": {
+    "tier": "Diamond",
+    "entries": [
+      {
+        "clan_id": "123e4567-e89b-12d3-a456-426614174000",
+        "clan_name": "Elite Squad",
+        "total_score": 50000,
+        "tier": "Diamond",
+        "rank": 1
+      },
+      {
+        "clan_id": "789e0123-a45b-67c8-d901-234567890123",
+        "clan_name": "Warriors",
+        "total_score": 45000,
+        "tier": "Diamond",
+        "rank": 2
+      }
+    ]
+  }
+}
+```
+
+##### Get User Tier
+
+| Property | Value |
+|----------|-------|
+| Method | `GET` |
+| Endpoint | `/api/v1/users/{user_id}/tier` |
+| Tag | League |
+
+**Path Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| user_id | UUID | User identifier |
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Data liga pengguna berhasil diambil",
+  "data": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "tier": "Gold",
+    "total_score": 2500
+  }
+}
+```
+
+#### Internal API (`/api/internal`)
+
+##### Sync User
+
+| Property | Value |
+|----------|-------|
+| Method | `POST` |
+| Endpoint | `/api/internal/users/sync` |
+| Tag | User Sync |
+
+**Request Body**:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "username": "john_doe",
+  "email": "john@example.com"
+}
+```
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Shadow user berhasil disinkronisasi",
+  "data": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "message": "Shadow user berhasil disinkronisasi"
+  }
+}
+```
+
+### Swagger UI
+
+Interactive API documentation is available at:
+
+```
+http://localhost:8080/swagger-ui
+```
+
+The OpenAPI specification JSON is available at:
+
+```
+http://localhost:8080/api-docs/openapi.json
+```
+
+---
+
+## API Response Format
+
+All API responses follow a consistent JSON structure.
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": { ... }
+}
+```
+
+### Success Response Without Data
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": null
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "data": null
+}
+```
+
+### HTTP Status Code Mapping
+
+| Status Code | Meaning | When Used |
+|-------------|---------|-----------|
+| 200 | OK | Successful GET, POST operations |
+| 201 | Created | Successful resource creation |
+| 400 | Bad Request | Invalid input, validation errors |
+| 404 | Not Found | Resource does not exist |
+| 409 | Conflict | Duplicate resource, user already in clan |
+| 500 | Internal Server Error | Database errors, unexpected failures |
+| 503 | Service Unavailable | Database or Redis connection failure |
+
+---
+
+## Testing
+
+### Test Structure
+
+Tests are organized by module and layer:
+
+```
+tests/
+├── modules/
+│   ├── league/
+│   │   ├── usecase_test.rs      # Use case logic tests
+│   │   ├── infrastructure_test.rs # Repository implementation tests
+│   │   └── presentation_test.rs  # Controller/route tests
+│   ├── gamification/
+│   │   ├── domain_test.rs
+│   │   ├── usecase_test.rs
+│   │   └── infrastructure_test.rs
+│   └── user_sync/
+│       ├── domain_test.rs
+│       ├── usecase_test.rs
+│       └── infrastructure_test.rs
+```
+
+### Running Tests
+
+#### All Tests
+
+```bash
+cargo test
+```
+
+#### Library Unit Tests Only
+
+```bash
+cargo test --lib
+```
+
+#### Binary Unit Tests Only
+
+```bash
+cargo test --bin yomu-backend-rust
+```
+
+#### Integration Tests by Category
+
+```bash
+# Use case tests
+cargo test --test usecase_test
+
+# Infrastructure tests
+cargo test --test infrastructure_test
+
+# Presentation tests
+cargo test --test presentation_test
+```
+
+#### Specific Test Module
+
+```bash
+cargo test league
+cargo test gamification
+cargo test user_sync
+```
+
+### Testing with Docker
+
+Start test database services:
+
+```bash
+docker compose up -d postgres redis
+```
+
+Run migrations on test database:
+
+```bash
+export DATABASE_URL=postgresql://yomu:yomu_password@localhost:5432/yomu_engine
+cargo sqlx migrate run
+```
+
+Run tests:
+
+```bash
+cargo test
+```
+
+### Code Coverage
+
+Generate code coverage report:
+
+```bash
+cargo tarpaulin --out Xml --output-dir ./coverage
+```
+
+The report is generated at `coverage/cobertura.xml` and can be uploaded to SonarCloud.
 
 ---
 
@@ -311,369 +1061,597 @@ curl http://localhost:8080/health
 
 ### Daily Development Cycle
 
+1. **Start infrastructure**:
+   ```bash
+   docker compose up -d postgres redis
+   ```
+
+2. **Run in development mode with hot reload**:
+   ```bash
+   docker compose up -d dev
+   ```
+
+3. **Make code changes** - the dev container auto-rebuilds
+
+4. **Run tests locally**:
+   ```bash
+   cargo test
+   cargo clippy --all -- -W warnings
+   ```
+
+### Coding Standards
+
+1. **Format code before committing**:
+   ```bash
+   cargo fmt --all
+   ```
+
+2. **Run clippy lints**:
+   ```bash
+   cargo clippy --all -- -W warnings
+   ```
+
+3. **Verify documentation builds**:
+   ```bash
+   cargo doc --all --no-deps
+   ```
+
+4. **Check SQLx offline mode**:
+   ```bash
+   cargo sqlx prepare --workspace --check
+   ```
+
+### Project Conventions
+
+| Convention | Description |
+|-------------|-------------|
+| **Architecture** | Hexagonal (Ports & Adapters) per module |
+| **Error Handling** | Domain errors via `thiserror`, application errors via `anyhow` |
+| **Async Traits** | Use `async-trait` for object-safe repository traits |
+| **Response Pattern** | Controllers return `Result<Json<ApiResponse<T>>, AppError>` |
+| **Entity Design** | Owned data (no `Arc` unless necessary) |
+| **Code Organization** | `domain/application/infrastructure/presentation` per module |
+
+### Anti-Patterns to Avoid
+
+- **No domain logic in controllers** - delegate to use cases
+- **No DB queries in use cases** - use repository abstractions
+- **No `unwrap()` or `expect()` in production code** - use `?` operator or `anyhow::Context`
+- **No sync code in async functions** - all handlers must be async
+
+---
+
+## Code Quality
+
+### Formatting
+
+Format all code:
+
 ```bash
-# 1. Start infrastructure (if not running)
-docker compose up -d postgres redis
-
-# 2. Run the application with hot reload
-cargo watch -x run
-
-# 3. Make code changes
-# The application will automatically rebuild and restart
-
-# 4. Run tests
-cargo test
-
-# 5. Check code quality
 cargo fmt --all
-cargo clippy --all -- -D warnings
 ```
 
-### Working with Database Migrations
+Check formatting without applying:
 
 ```bash
-# Create a new migration
-cargo sqlx migrate add create_clans_table
+cargo fmt --all -- --check
+```
 
-# Run migrations (automatically runs on startup in development)
-# Or run manually:
-cargo sqlx database setup
+### Linting with Clippy
 
-# Revert last migration
+Run all clippy checks:
+
+```bash
+cargo clippy --all --all-targets -- -W warnings
+```
+
+### Documentation
+
+Build documentation:
+
+```bash
+cargo doc --all --no-deps
+```
+
+Build documentation with warnings as errors:
+
+```bash
+RUSTDOCFLAGS="-D warnings" cargo doc --all --no-deps
+```
+
+### SQLx Offline Mode
+
+SQLx performs compile-time verification of SQL queries. To prepare for offline mode:
+
+```bash
+cargo sqlx prepare --workspace --check
+```
+
+This verifies all queries without requiring a database connection.
+
+---
+
+## Database Migrations
+
+### Migration Files Location
+
+Migrations are stored in the `migrations/` directory with naming convention:
+
+```
+YYYYMMDDHHMMSS_<migration_name>.sql
+```
+
+### Existing Migrations
+
+| Migration | Description |
+|-----------|-------------|
+| `20260224122751_first_migrations` | Creates all core tables (engine_users, clans, achievements, etc.) |
+| `20260416022505_add_reward_points` | Adds reward_points column to achievements and daily_missions |
+
+### Creating a New Migration
+
+```bash
+cargo sqlx migrate add <migration_name>
+```
+
+This creates a new file in the migrations directory:
+
+```
+migrations/
+├── 20260224122751_first_migrations.sql
+├── 20260416022505_add_reward_points.sql
+└── YYYYMMDDHHMMSS_<migration_name>.sql
+```
+
+### Running Migrations
+
+With local database:
+
+```bash
+export DATABASE_URL=postgresql://yomu:yomu_password@localhost:5432/yomu_engine
+cargo sqlx migrate run
+```
+
+With Docker:
+
+```bash
+docker compose up -d postgres
+docker compose exec postgres psql -U yomu -d yomu_engine -c "CREATE DATABASE yomu_engine;"
+cargo sqlx migrate run
+```
+
+### Reverting Migrations
+
+```bash
 cargo sqlx migrate revert
 ```
 
-### Adding New Dependencies
+### Migration Guidelines
 
-```bash
-# Add a new dependency
-cargo add <crate-name>
-
-# Add a dependency with specific version
-cargo add <crate-name>@<version>
-
-# Add a development dependency
-cargo add --dev <crate-name>
-
-# Update all dependencies
-cargo update
-```
+1. Each migration should be idempotent when possible
+2. Use `CREATE TABLE IF NOT EXISTS` for tables
+3. Use `ALTER TABLE` with `IF EXISTS`/`IF NOT EXISTS` where supported
+4. Always include a rollback strategy in comments
 
 ---
 
-## Useful Commands & Troubleshooting
+## Troubleshooting
 
-### Linting & Formatting
+### Common Issues and Solutions
 
-```bash
-# Format all code automatically
-cargo fmt --all
+#### Database Connection Failed
 
-# Check formatting without making changes
-cargo fmt --all -- --check
-
-# Run clippy for code quality checks and suggestions
-cargo clippy --all -- -D warnings
-
-# Run clippy with more thorough checks
-cargo clippy --all --all-targets -- -D warnings
-
-# Fix automatically fixable clippy warnings
-cargo clippy --fix --allow-dirty
+**Error**:
+```
+Failed connecting to database: connection refused
 ```
 
-> **Note on `cargo fmt`:** If the formatter ignores your file, make sure the file is registered in the module tree. You must add `pub mod filename;` in the parent folder's `mod.rs`.
+**Solution**:
+1. Verify PostgreSQL is running:
+   ```bash
+   docker compose ps postgres
+   ```
+2. Check DATABASE_URL is correct
+3. Ensure port 5432 is not blocked by firewall
 
-### Building & Running
+#### Redis Connection Failed
 
-```bash
-# Build the project (debug mode)
-cargo build
-
-# Build for release (optimized)
-cargo build --release
-
-# Run with custom configuration
-cargo run -- --help
-
-# Run tests
-cargo test
-
-# Run tests with output
-cargo test -- --nocapture
-
-# Run specific test
-cargo test test_name
-
-# Run tests with coverage (requires cargo-tarpaulin)
-cargo install cargo-tarpaulin
-cargo tarpaulin --out Html
+**Error**:
+```
+Failed connecting to Redis: error connecting to redis
 ```
 
-### Troubleshooting Common Issues
+**Solution**:
+1. Verify Redis is running:
+   ```bash
+   docker compose ps redis
+   ```
+2. Check REDIS_URL is correct
+3. Ensure port 6379 is accessible
 
-#### Issue: "Connection refused" or "Password authentication failed"
+#### SQLx Query Not Found
 
-**Cause:** Database credentials in your `.env` don't match docker-compose.yml
-
-**Solution:**
-1. Check your `.env` file
-2. Ensure `DATABASE_URL` matches: `postgres://yomu:yomu_password@localhost:5432/yomu_engine`
-3. Ensure `REDIS_URL` matches: `redis://localhost:6379`
-4. Verify containers are running: `docker compose ps`
-
-#### Issue: Server exits immediately on startup
-
-**Cause:** Application is designed to "fail-fast". If it cannot connect to required services (Postgres, Redis), it shuts down to prevent hanging states.
-
-**Solution:**
-1. Check terminal logs for specific error
-2. Ensure Docker containers are running: `docker compose ps`
-3. Wait a few seconds for services to be fully ready
-4. Try restarting services: `docker compose restart postgres redis`
-
-#### Issue: Port already in use
-
-**Cause:** Another process is using port 8080
-
-**Solution:**
-```bash
-# Find what's using port 8080
-lsof -i :8080
-
-# Kill the process (replace PID with actual process ID)
-kill <PID>
-
-# Or use a different port by updating .env
+**Error**:
+```
+error[sqlx]: unknown query
 ```
 
-#### Issue: Migration fails
+**Solution**:
+1. Ensure `SQLX_OFFLINE=true` is not set during development
+2. Run `cargo sqlx prepare --workspace --check` to verify queries
+3. Rebuild with `cargo build`
 
-**Cause:** Database schema mismatch or connection issues
+#### Migration Failed
 
-**Solution:**
-```bash
-# Drop and recreate database (WARNING: loses all data)
-cargo sqlx database drop
-cargo sqlx database create
-
-# Or run specific migration
-cargo sqlx migrate run --ignore-missing
+**Error**:
+```
+Error while doing database migrations: migrate error
 ```
 
-#### Issue: Clippy warnings about style
+**Solution**:
+1. Check migration file syntax
+2. Verify database exists and user has permissions
+3. Check for conflicting migrations (duplicate versions)
 
-**Cause:** Code style doesn't match project conventions
+#### Port Already in Use
 
-**Solution:**
-```bash
-# Run formatter first
-cargo fmt --all
-
-# Then run clippy
-cargo clippy --all -- -D warnings
+**Error**:
 ```
+Failed to bind TCP listener on 0.0.0.0:8080: address already in use
+```
+
+**Solution**:
+1. Find and stop the process using port 8080:
+   ```bash
+   lsof -i :8080
+   # or
+   fuser -k 8080/tcp
+   ```
+2. Or change APP_PORT in .env
+
+#### Docker Build Failed
+
+**Error**:
+```
+error: cannot find container image
+```
+
+**Solution**:
+1. Ensure Docker is running
+2. Clear build cache:
+   ```bash
+   docker builder prune
+   ```
+
+### Health Check Failures
+
+The `/health` endpoint checks both PostgreSQL and Redis connections.
+
+**Response when unhealthy**:
+```json
+{
+  "success": true,
+  "message": "Server is running well",
+  "data": {
+    "status": "unhealthy",
+    "version": "0.1.0",
+    "postgres": "error: connection refused",
+    "redis": "connected"
+  }
+}
+```
+
+Returns HTTP 503 when unhealthy.
 
 ---
 
-## Architecture
+## Deployment
 
-This project uses a **Module-Based (Feature-Based) Structure** combined with **Hexagonal Architecture** (also known as Ports and Adapters). This architectural approach provides excellent separation of concerns and makes the codebase highly testable and maintainable.
+### Production Build
 
-### Why Modular + Hexagonal?
-
-#### Traditional Layered Architecture (Not Used)
-```
-┌─────────────────────────────────────┐
-│         Presentation Layer          │  ← Controllers, Routes
-├─────────────────────────────────────┤
-│         Application Layer           │  ← Use Cases, DTOs
-├─────────────────────────────────────┤
-│           Domain Layer              │  ← Entities, Business Rules
-├─────────────────────────────────────┤
-│        Infrastructure Layer         │  ← DB, Cache, External APIs
-└─────────────────────────────────────┘
-```
-
-**Problem**: As the application grows, the domain layer gets tangled with infrastructure concerns.
-
-#### Modular + Hexagonal Architecture (Used)
-```
-┌─────────────────────────────────────────────────────────┐
-│                    League Module                        │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │                  Domain Layer                   │    │
-│  │   Entities │ Value Objects │ Ports (Traits)     │    │
-│  └─────────────────────────────────────────────────┘    │
-│  ┌────────────────┐  ┌────────────────────────────┐     │
-│  │ Application    │  │        Ports (Interfaces)  │     │
-│  │ Layer          │◄─┤  ┌────────────┐ ┌────────┐ │     │
-│  │ Commands/Queries│ │ ClanRepository│Leaderboard │     │
-│  └────────────────┘  │  └────────────┘ └────────┘ │     │
-│                      └────────────────────────────┘     │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │              Infrastructure Layer               │    │
-│  │  SQLx Adapter │ Redis Adapter │ HTTP Client     │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Benefit**: Each module is a self-contained bounded context with its own hexagonal architecture. Dependencies point inward toward the domain.
-
-### Layer Responsibilities
-
-| Layer | Description | Dependencies |
-|-------|-------------|--------------|
-| `domain/` | **Pure business logic**. Contains entities, value objects, and port definitions (traits). This layer has ZERO external dependencies and could theoretically be extracted into a separate crate. | None |
-| `application/` | **Use cases and orchestration**. Contains command and query handlers, DTOs, and application-specific logic. Depends only on the domain layer. | Domain layer |
-| `infrastructure/` | **External integrations**. Contains adapters for PostgreSQL, Redis, HTTP clients, etc. Implements the ports defined in the domain layer. | Application layer + external crates |
-| `presentation/` | **HTTP delivery**. Contains Axum controllers, request/response handlers, and route definitions. Depends on the application layer. | Application layer + Axum |
-
-### Dependency Flow
-
-```
-         ┌──────────────┐
-         │ Presentation │  (depends on)
-         └──────┬───────┘
-                │
-         ┌──────▼───────┐
-         │ Application  │  (depends on)
-         └──────┬───────┘
-                │
-         ┌──────▼───────┐
-         │    Domain    │  (defines interfaces for)
-         └──────┬───────┘
-                │
-         ┌──────▼───────┐
-         │Infrastructure│  (implements interfaces from)
-         └──────────────┘
-```
-
-### Key Design Patterns
-
-1. **Repository Pattern**: Abstraction over data persistence
-2. **Unit of Work**: Transaction management
-3. **CQRS**: Separate command and query models for read/write operations
-4. **Dependency Injection**: Traits injected at startup
-5. **Result Type**: Explicit error handling with `Result<T, E>`
-
----
-
-
-
-## Configuration
-
-### Configuration Files
-
-| File | Purpose |
-|------|---------|
-| `.env` | Environment variables (local development) |
-| `.env.example` | Template for environment variables |
-| `rustfmt.toml` | Code formatting rules |
-| `.clippy.toml` | Linter configuration |
-| `docker-compose.yml` | Container orchestration |
-
-### Configuration Management
-
-The application uses the `config` crate for hierarchical configuration:
-
-1. **Default values** in `config/settings.rs`
-2. **Environment variables** override defaults
-3. **Secret values** come from `.env` file
-
-### Running with Custom Configuration
+The production Dockerfile uses a multi-stage build with musl target for static linking:
 
 ```bash
-# Use specific environment
-APP_ENV=production cargo run
-
-# Override specific settings
-cargo run -- --host 127.0.0.1 --port 9000
+docker build -f Dockerfile -t yomu-engine:latest .
 ```
+
+### Railway Deployment
+
+The Dockerfile is optimized for Railway deployment:
+
+1. Uses `rust:1.93-bookworm` for building
+2. Targets `x86_64-unknown-linux-musl` for static binary
+3. Runs as non-root user `yomuuser`
+4. Minimal runtime image based on `debian:bookworm-slim`
+
+### Environment Variables for Production
+
+At minimum, set these environment variables:
+
+```env
+DATABASE_URL=postgresql://user:password@host:port/database
+REDIS_URL=redis://host:port
+JAVA_CORE_URL=https://java-backend.example.com
+JAVA_CORE_API_KEY=your_secure_api_key
+RUST_LOG=warn
+```
+
+### Health Check Configuration
+
+Configure load balancer to check:
+
+```
+GET http://host:8080/health
+```
+
+Expect HTTP 200 with JSON body containing `"status": "healthy"`.
+
+### Graceful Shutdown
+
+The application handles SIGTERM for graceful shutdown. The server stops accepting new connections and waits for in-flight requests to complete (up to timeout).
 
 ---
 
-## Testing
+## Monitoring
 
-### Running Tests
+### Health Endpoint
 
-```bash
-cargo test
+The `/health` endpoint provides real-time status:
+
 ```
+GET /health
+```
+
+Response includes:
+- Overall status (healthy/unhealthy)
+- Version from Cargo.toml
+- PostgreSQL connection status
+- Redis connection status
+
+### Structured Logging
+
+All logs use the `tracing` crate with JSON formatting:
+
+```
+RUST_LOG=debug   # Most verbose
+RUST_LOG=info    # Default production
+RUST_LOG=warn    # Warnings only
+RUST_LOG=error   # Errors only
+```
+
+### Request Tracing
+
+Tower middleware provides:
+- Request/response logging
+- Timeout enforcement (10 seconds)
+- CORS headers
+
+### Metrics (Future)
+
+Planned integration:
+- Prometheus metrics endpoint
+- Request duration histograms
+- Database query timing
+- Cache hit/miss ratios
 
 ---
 
-## Dependencies
+## Security
 
-### Production Dependencies
+### CORS Configuration
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| axum | 0.8.8 | Web framework |
-| tower | 0.5.2 | HTTP middleware |
-| tower-http | 0.6.2 | HTTP utilities |
-| tokio | 1.49.0 | Async runtime |
-| sqlx | 0.8.6 | Database ORM |
-| redis | 1.0.4 | Redis client |
-| serde | 1.0.228 | Serialization |
-| serde_json | 1.0.138 | JSON handling |
-| validator | 0.20.0 | Request validation |
-| thiserror | 2.0.18 | Error handling |
-| anyhow | 1.0.95 | Error handling |
-| tracing | 0.1.41 | Logging |
-| tracing-subscriber | 0.3.22 | Logging subscriber |
-| dotenvy | 0.15.7 | Environment variables |
-| chrono | 0.4.44 | Date/time |
-| uuid | 1.21.0 | Unique IDs |
-| reqwest | 0.13.2 | HTTP client |
+The application currently allows all origins for development:
 
-### Development Dependencies
+```rust
+CorsLayer::new()
+    .allow_origin(Any)
+    .allow_methods(Any)
+    .allow_headers(Any)
+```
 
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| cargo-watch | 8 | Hot reload |
-| cargo-fmt | 0.6 | Code formatting |
-| clippy | 0.1 | Linting |
-| sqlx-cli | 0.7 | Database migrations |
-| tokio-test | 1 | Async testing |
-| mockall | 0.11 | Mocking |
-| rstest | 0.18 | Parametrized tests |
+**Production Note**: Restrict CORS to specific origins before deployment.
+
+### Authentication
+
+The public API does not include authentication (handled by the frontend BFF). The internal API (`/api/internal`) should be protected via network isolation or API key verification.
+
+### API Key for Internal Services
+
+The `JAVA_CORE_API_KEY` environment variable is intended for authenticating requests from the Java backend to this service.
+
+### Input Validation
+
+Request validation uses the `validator` crate:
+
+```rust
+#[derive(Validate)]
+struct CreateClanDto {
+    #[validate(length(min = 1, max = 255))]
+    name: String,
+    #[validate(uuid)]
+    leader_id: Uuid,
+}
+```
+
+### Rate Limiting (Future)
+
+Not currently implemented. Consider adding tower Governor or similar middleware for production.
 
 ---
 
 ## CI/CD
 
-The project uses GitHub Actions for continuous integration and deployment. The workflow is defined in `.github/workflows/ci.yml`.
+### GitHub Actions Workflows
 
-### Pipeline Stages
+```mermaid
+flowchart LR
+    subgraph CI["CI Pipeline"]
+        direction TB
+        fmt["fmt\nCheck formatting"]
+        clippy["clippy\nLint checks"]
+        doc["doc\nBuild docs"]
+        test["test\nTest suite"]
+        docker["docker\nBuild image"]
 
-1. **Lint**
-   - Code formatting check (`cargo fmt`)
-   - Linting with Clippy (`cargo clippy`)
-   - Security audit (`cargo audit`)
+        fmt --> clippy --> doc --> test --> docker
+    end
 
-2. **Test**
-   - Unit tests (`cargo test`)
-   - Integration tests
-   - Code coverage (minimum 80%)
+    subgraph Sonar["SonarCloud"]
+        sonar["sonar\nCoverage scan"]
+    end
 
-3. **Build**
-   - Debug build check
-   - Release build compilation
-
-4. **Docker**
-   - Build production image
-   - Build development image
-   - Push to container registry (on main branch)
-
-### Running CI Locally
-
-```bash
-# Simulate CI checks locally
-cargo fmt --all -- --check
-cargo clippy --all -- -D warnings
-cargo test
-cargo build --release
+    test --> sonar
 ```
 
+### CI Workflow (ci.yml)
+
+Runs on every push to any branch:
+
+| Job | Steps |
+|-----|-------|
+| **fmt** | Check code formatting with rustfmt |
+| **clippy** | Run clippy lints with warnings as errors |
+| **doc** | Build documentation |
+| **test** | Run all tests with PostgreSQL and Redis services |
+| **docker** | Build Docker image (after all jobs pass) |
+
+### SonarCloud Workflow (sonar.yml)
+
+Runs on push and pull requests:
+
+| Step | Description |
+|------|-------------|
+| Checkout | Fetch full history for coverage |
+| Setup Rust | Install Rust toolchain |
+| Install tarpaulin | Code coverage tool |
+| Install sqlx-cli | Migration tool |
+| Run migrations | Set up test database |
+| Generate coverage | Run tarpaulin with Cobertura output |
+| Sonar scan | Upload to SonarCloud |
+
+### Environment Variables for CI
+
+The CI pipeline uses:
+- `DATABASE_URL`: Test database connection
+- `REDIS_URL`: Redis connection
+- `SONAR_TOKEN`: SonarCloud authentication (repository secret)
+
+### Badge Status
+
+Configure badges in your repository settings:
+- CI: `.github/workflows/ci.yml`
+- SonarCloud: `.github/workflows/sonar.yml`
+
 ---
+
+## Contributing
+
+### Development Setup
+
+1. Fork the repository
+2. Clone your fork:
+   ```bash
+   git clone https://github.com/your-username/yomu-backend-rust.git
+   cd yomu-backend-rust
+   ```
+3. Add upstream remote:
+   ```bash
+   git remote add upstream https://github.com/original-repo/yomu-backend-rust.git
+   ```
+
+### Branch Strategy
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Production-ready code |
+| `develop` | Integration branch |
+| `feature/*` | New feature development |
+| `fix/*` | Bug fixes |
+| `refactor/*` | Code refactoring |
+
+### Commit Messages
+
+Follow conventional commits:
+
+```
+feat(league): add clan tier promotion system
+fix(gamification): correct mission progress calculation
+docs(api): update endpoint documentation
+refactor(user_sync): simplify sync logic
+test(league): add leaderboard query tests
+```
+
+### Pull Request Process
+
+1. Create a feature branch from `develop`
+2. Make changes with passing tests
+3. Run code quality checks:
+   ```bash
+   cargo fmt --all
+   cargo clippy --all -- -W warnings
+   cargo test
+   ```
+4. Open a pull request with description
+5. Request review from maintainers
+6. Address feedback
+7. Squash and merge when approved
+
+### Code Review Checklist
+
+- [ ] Code follows project conventions
+- [ ] Tests pass and cover new functionality
+- [ ] Documentation updated if needed
+- [ ] No compiler warnings
+- [ ] No clippy warnings
+- [ ] SQLx queries verified offline
+
+---
+
+## License
+
+This project is proprietary software. All rights reserved.
+
+---
+
+## Links
+
+| Resource | URL |
+|----------|-----|
+| Repository | `<repository-url>` |
+| API Documentation | `http://localhost:8080/swagger-ui` |
+| OpenAPI Spec | `http://localhost:8080/api-docs/openapi.json` |
+| Health Check | `http://localhost:8080/health` |
+
+---
+
+## Appendix
+
+### A. Clan Tier System
+
+| Tier | Description | Typical Score Range |
+|------|-------------|---------------------|
+| Bronze | Entry level | 0 - 4,999 |
+| Silver | Intermediate | 5,000 - 19,999 |
+| Gold | Advanced | 20,000 - 49,999 |
+| Diamond | Elite | 50,000+ |
+
+### B. Error Codes Reference
+
+| Error Type | HTTP Status | Description |
+|------------|-------------|-------------|
+| `AppError::BadRequest` | 400 | Invalid request data |
+| `AppError::NotFound` | 404 | Resource not found |
+| `AppError::InternalServer` | 500 | Server-side error |
+
+### C. Key Dependencies Graph
+
+```mermaid
+graph TB
+    Axum --> Tower
+    Axum --> Tokio
+    Sqlx --> Tokio
+    Sqlx --> PostgreSQL
+    Redis --> Tokio
+    Utoipa --> Swagger
+    Tower-http --> Tower
+```

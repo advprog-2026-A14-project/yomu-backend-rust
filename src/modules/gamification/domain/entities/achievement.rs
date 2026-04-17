@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize}; 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -31,7 +31,13 @@ pub struct Achievement {
 }
 
 impl Achievement {
-    pub fn new(id: Uuid, name: String, target: i32, achievement_type: AchievementType, reward: i32) -> Result<Self, &'static str> {
+    pub fn new(
+        id: Uuid,
+        name: String,
+        target: i32,
+        achievement_type: AchievementType,
+        reward: i32,
+    ) -> Result<Self, &'static str> {
         let mut achievement = Self {
             id,
             name: String::new(),
@@ -39,18 +45,17 @@ impl Achievement {
             achievement_type,
             reward_points: 0,
         };
-        
+
         achievement.update_details(name, target, reward)?;
         Ok(achievement)
     }
 
     pub fn update_details(
-        &mut self, 
-        new_name: String, 
-        new_target: i32, 
-        new_reward: i32
+        &mut self,
+        new_name: String,
+        new_target: i32,
+        new_reward: i32,
     ) -> Result<(), &'static str> {
-        
         if new_name.trim().is_empty() {
             return Err("Nama achievement tidak boleh kosong.");
         }
@@ -68,11 +73,21 @@ impl Achievement {
         Ok(())
     }
 
-    pub fn id(&self) -> Uuid { self.id }
-    pub fn name(&self) -> &str { &self.name }
-    pub fn milestone_target(&self) -> i32 { self.milestone_target }
-    pub fn achievement_type(&self) -> &AchievementType { &self.achievement_type }
-    pub fn reward_points(&self) -> i32 { self.reward_points }
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn milestone_target(&self) -> i32 {
+        self.milestone_target
+    }
+    pub fn achievement_type(&self) -> &AchievementType {
+        &self.achievement_type
+    }
+    pub fn reward_points(&self) -> i32 {
+        self.reward_points
+    }
 }
 
 #[cfg(test)]
@@ -82,7 +97,13 @@ mod tests {
     #[test]
     fn test_achievement_creation_success() {
         let id = Uuid::new_v4();
-        let ach = Achievement::new(id, "Tes Achievement".to_string(), 10, AchievementType::Epic, 50);
+        let ach = Achievement::new(
+            id,
+            "Tes Achievement".to_string(),
+            10,
+            AchievementType::Epic,
+            50,
+        );
         assert!(ach.is_ok());
         let ach = ach.unwrap();
         assert_eq!(ach.name(), "Tes Achievement");
@@ -93,9 +114,16 @@ mod tests {
     fn test_achievement_creation_fails_on_invalid_input() {
         let id = Uuid::new_v4();
         let empty_name = Achievement::new(id, "".to_string(), 10, AchievementType::Common, 50);
-        assert_eq!(empty_name.unwrap_err(), "Nama achievement tidak boleh kosong.");
+        assert_eq!(
+            empty_name.unwrap_err(),
+            "Nama achievement tidak boleh kosong."
+        );
 
-        let negative_target = Achievement::new(id, "Valid".to_string(), 0, AchievementType::Common, 50);
-        assert_eq!(negative_target.unwrap_err(), "Target milestone harus lebih dari 0.");
+        let negative_target =
+            Achievement::new(id, "Valid".to_string(), 0, AchievementType::Common, 50);
+        assert_eq!(
+            negative_target.unwrap_err(),
+            "Target milestone harus lebih dari 0."
+        );
     }
 }

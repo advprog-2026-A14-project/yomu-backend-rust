@@ -14,19 +14,58 @@ use tower_http::{
     trace::TraceLayer,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use yomu_backend_rust::{AppState, HealthResponse};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
 
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Server is healthy")
+    ),
+    tag = "health"
+)]
 async fn health_check(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> (StatusCode, Json<ApiResponse<HealthResponse>>) {
+    let postgres_status = match sqlx::query("SELECT 1").fetch_one(&state.db).await {
+        Ok(_) => "connected".to_string(),
+        Err(e) => format!("error: {}", e),
+    };
+
+    let mut redis_conn = state.redis.clone();
+    let redis_status = match redis::cmd("PING")
+        .query_async::<String>(&mut redis_conn)
+        .await
+    {
+        Ok(resp) if resp == "PONG" => "connected".to_string(),
+        Ok(resp) => resp,
+        Err(e) => format!("error: {}", e),
+    };
+
+    let overall_status = if postgres_status == "connected" && redis_status == "connected" {
+        "healthy"
+    } else {
+        "unhealthy"
+    };
+
     let health_data = HealthResponse {
-        status: "healthy".to_string(),
+        status: overall_status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
+        postgres: postgres_status,
+        redis: redis_status,
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
 
-    (StatusCode::OK, Json(response))
+    let status_code = if overall_status == "healthy" {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (status_code, Json(response))
 }
 
 async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {
@@ -91,31 +130,43 @@ async fn main() {
         );
 
     let api_v1_router = Router::new().merge(modules::league::presentation::routes::league_routes());
-    let internal_api_router = Router::new().nest(
-        "/users",
-        modules::user_sync::presentation::routes::user_sync_routes(),
-    );
+    let internal_api_router =
+        Router::new().merge(modules::user_sync::presentation::routes::user_sync_routes());
+
+    let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/error", get(simulate_error))
+        .merge(swagger)
         .nest("/api/v1", api_v1_router)
         .nest("/api/internal", internal_api_router)
         .with_state(state)
         .layer(middleware_stack);
 
+    #[allow(clippy::expect_used)]
     let addr: SocketAddr = format!("{}:{}", app_config.host, app_config.port)
         .parse()
         .expect("Invalid host/port configuration");
 
     tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to bind TCP listener on {}: {}", addr, e);
+            std::process::exit(1);
+        });
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
-        .unwrap();
+        .unwrap_or_else(|e| {
+            tracing::error!("Axum server error: {}", e);
+            std::process::exit(1);
+        });
 }
 
+#[allow(clippy::expect_used)]
 async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()

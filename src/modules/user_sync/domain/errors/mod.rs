@@ -1,1 +1,3 @@
-// User Sync errors - SyncFailed, UserAlreadyExists
+mod user_sync_error;
+
+pub use user_sync_error::UserSyncError;

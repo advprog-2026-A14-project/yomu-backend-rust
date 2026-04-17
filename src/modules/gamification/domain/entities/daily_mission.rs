@@ -43,14 +43,13 @@ impl DailyMission {
     }
 
     pub fn update_details(
-        &mut self, 
-        new_description: String, 
-        new_target: i32, 
+        &mut self,
+        new_description: String,
+        new_target: i32,
         new_date: NaiveDate,
         new_reward: i32,
         new_mission_type: MissionType
-    ) -> Result<(), &'static str> {
-        
+     ) -> Result<(), &'static str> {
         if new_description.trim().is_empty() {
             return Err("Deskripsi misi harian tidak boleh kosong.");
         }
