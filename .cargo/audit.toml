@@ -1,0 +1,14 @@
+[advisories]
+ignore = []
+
+[database]
+fetch = true
+stale = false
+
+[output]
+format = "terminal"
+quiet = false
+show_tree = true
+
+[yanked]
+enabled = true
