@@ -2,6 +2,7 @@
 name = "yomu-backend-rust"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Yomu Backend Rust"
 
 [dependencies]
@@ -28,8 +29,23 @@ dotenvy = "0.15.7"
 thiserror = "2.0.18"
 anyhow = "1.0.95"
 
+prometheus-client = "0.24"
+axum-prometheus = "0.10"
+
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# OpenTelemetry
+axum-tracing-opentelemetry = "0.32"
+opentelemetry-otlp = { version = "0.28", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.28", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.28"
+opentelemetry = "0.28"
+
+# Sentry
+sentry = { version = "0.47", features = ["tower", "backtrace", "tracing"] }
+sentry-tower = "0.47"
 
 validator = { version = "0.20.0", features = ["derive"] }
 
@@ -54,6 +70,7 @@ panic = "warn"
 [dev-dependencies]
 mockall = "0.14.0"
 async-trait = "0.1"
+proptest = "1.9"
 
 [[test]]
 name = "usecase_test"
