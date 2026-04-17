@@ -55,9 +55,13 @@ COPY --from=builder /app/.env.example /app/.env.example
 EXPOSE 8080
 
 # Add metadata labels
-LABEL org.opencontainers.image.source="https://github.com/${{ github.repository }}"
-LABEL org.opencontainers.image.description="Yomu Backend Rust - Gamification Engine"
-LABEL org.opencontainers.image.licenses="MIT"
+ARG IMAGE_SOURCE="https://github.com/advprog-2026-A14-project/yomu-backend-rust"
+ARG IMAGE_DESCRIPTION="Yomu Backend Rust - Gamification Engine"
+ARG IMAGE_LICENSES="MIT"
+
+LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
+LABEL org.opencontainers.image.description="${IMAGE_DESCRIPTION}"
+LABEL org.opencontainers.image.licenses="${IMAGE_LICENSES}"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

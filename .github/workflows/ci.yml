@@ -199,3 +199,7 @@ jobs:
           tags: yomu-engine:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            IMAGE_SOURCE=https://github.com/${{ github.repository }}
+            IMAGE_DESCRIPTION=Yomu Backend Rust - Gamification Engine
+            IMAGE_LICENSES=MIT
