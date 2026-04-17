@@ -44,7 +44,9 @@ impl ClaimMissionRewardUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::gamification::domain::entities::daily_mission::{DailyMission, MissionType};
+    use crate::modules::gamification::domain::entities::daily_mission::{
+        DailyMission, MissionType,
+    };
     use crate::modules::gamification::domain::entities::user_mission::UserMission;
     use crate::modules::gamification::domain::repositories::mission_repository::MockMissionRepository;
     use chrono::NaiveDate;
@@ -64,7 +66,7 @@ mod tests {
             target_count,
             NaiveDate::from_ymd_opt(2026, 3, 6).unwrap(),
             reward_points,
-            mission_type
+            mission_type,
         )
         .unwrap();
 

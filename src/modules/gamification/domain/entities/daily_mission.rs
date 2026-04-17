@@ -22,10 +22,10 @@ pub struct DailyMission {
 
 impl DailyMission {
     pub fn new(
-        id: Uuid, 
-        description: String, 
-        target_count: i32, 
-        date: NaiveDate, 
+        id: Uuid,
+        description: String,
+        target_count: i32,
+        date: NaiveDate,
         reward_points: i32,
         mission_type: MissionType,
     ) -> Result<Self, &'static str> {
@@ -37,7 +37,7 @@ impl DailyMission {
             reward_points: 0,
             mission_type,
         };
-        
+
         mission.update_details(description, target_count, date, reward_points, mission_type)?;
         Ok(mission)
     }
@@ -48,8 +48,8 @@ impl DailyMission {
         new_target: i32,
         new_date: NaiveDate,
         new_reward: i32,
-        new_mission_type: MissionType
-     ) -> Result<(), &'static str> {
+        new_mission_type: MissionType,
+    ) -> Result<(), &'static str> {
         if new_description.trim().is_empty() {
             return Err("Deskripsi misi harian tidak boleh kosong.");
         }
@@ -69,12 +69,24 @@ impl DailyMission {
         Ok(())
     }
 
-    pub fn id(&self) -> Uuid { self.id }
-    pub fn description(&self) -> &str { &self.description }
-    pub fn target_count(&self) -> i32 { self.target_count }
-    pub fn date(&self) -> chrono::NaiveDate { self.date }
-    pub fn reward_points(&self) -> i32 { self.reward_points }
-    pub fn mission_type(&self) -> MissionType {self.mission_type}
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+    pub fn target_count(&self) -> i32 {
+        self.target_count
+    }
+    pub fn date(&self) -> chrono::NaiveDate {
+        self.date
+    }
+    pub fn reward_points(&self) -> i32 {
+        self.reward_points
+    }
+    pub fn mission_type(&self) -> MissionType {
+        self.mission_type
+    }
 }
 
 #[cfg(test)]
@@ -84,8 +96,15 @@ mod tests {
     #[test]
     fn test_daily_mission_creation_success() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 6).unwrap();
-        let mission = DailyMission::new(Uuid::new_v4(), "Baca 3 Berita".to_string(), 3, date, 100, MissionType::DailyLogin);
-        
+        let mission = DailyMission::new(
+            Uuid::new_v4(),
+            "Baca 3 Berita".to_string(),
+            3,
+            date,
+            100,
+            MissionType::DailyLogin,
+        );
+
         assert!(mission.is_ok());
         let mission = mission.unwrap();
         assert_eq!(mission.target_count(), 3);
@@ -95,7 +114,17 @@ mod tests {
     #[test]
     fn test_daily_mission_fails_on_invalid_input() {
         let date = NaiveDate::from_ymd_opt(2026, 3, 6).unwrap();
-        let invalid_reward = DailyMission::new(Uuid::new_v4(), "Valid".to_string(), 1, date, -10, MissionType::DailyLogin);
-        assert_eq!(invalid_reward.unwrap_err(), "Poin reward tidak boleh bernilai negatif.");
+        let invalid_reward = DailyMission::new(
+            Uuid::new_v4(),
+            "Valid".to_string(),
+            1,
+            date,
+            -10,
+            MissionType::DailyLogin,
+        );
+        assert_eq!(
+            invalid_reward.unwrap_err(),
+            "Poin reward tidak boleh bernilai negatif."
+        );
     }
 }

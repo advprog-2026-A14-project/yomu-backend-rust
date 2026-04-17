@@ -1,15 +1,15 @@
 use chrono::Utc;
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::entities::achievement::Achievement;
 use crate::modules::gamification::domain::entities::daily_mission::DailyMission;
+use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
 use crate::modules::gamification::domain::entities::user_mission::UserMission;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
-use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 
 pub struct SyncQuizGamificationUseCase {
     pub mission_repo: Arc<dyn MissionRepository>,
@@ -39,7 +39,6 @@ impl SyncQuizGamificationUseCase {
 
         for mission in active_missions {
             if let MissionType::Quiz = mission.mission_type() {
-                
                 let mut user_mission = match self.mission_repo.get_user_mission(payload.user_id, mission.id()).await? {
                     Some(um) => um,
                     None => {
@@ -60,7 +59,10 @@ impl SyncQuizGamificationUseCase {
             .map(|ach| (ach.id(), ach))
             .collect();
 
-        let user_achievements = self.achievement_repo.get_user_achievements(payload.user_id).await?;
+        let user_achievements = self
+            .achievement_repo
+            .get_user_achievements(payload.user_id)
+            .await?;
 
         for mut user_ach in user_achievements {
             if user_ach.is_completed() {
@@ -68,7 +70,6 @@ impl SyncQuizGamificationUseCase {
             }
 
             if let Some(achievement_master) = achievement_map.get(&user_ach.achievement_id()) {
-                
                 user_ach.add_progress(1, achievement_master.milestone_target(), now);
 
                 // reward otomatis dapat habis selesaikan achievement
