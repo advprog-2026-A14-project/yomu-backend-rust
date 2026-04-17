@@ -80,6 +80,7 @@ async fn test_api_create_clan_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        metrics: std::sync::Arc::new(yomu_backend_rust::AppMetrics::default()),
     };
 
     let leader_id = Uuid::new_v4();
@@ -140,6 +141,7 @@ async fn test_api_join_clan_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        metrics: std::sync::Arc::new(yomu_backend_rust::AppMetrics::default()),
     };
 
     let leader_id = Uuid::new_v4();
@@ -202,6 +204,7 @@ async fn test_api_get_leaderboard_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        metrics: std::sync::Arc::new(yomu_backend_rust::AppMetrics::default()),
     };
 
     let app = axum::Router::new()

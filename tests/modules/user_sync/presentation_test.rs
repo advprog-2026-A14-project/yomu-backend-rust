@@ -54,7 +54,11 @@ async fn setup_app_state() -> yomu_backend_rust::AppState {
         .await
         .unwrap();
 
-    yomu_backend_rust::AppState { db: pool, redis }
+    yomu_backend_rust::AppState {
+        db: pool,
+        redis,
+        metrics: std::sync::Arc::new(yomu_backend_rust::AppMetrics::default()),
+    }
 }
 
 #[tokio::test]
