@@ -44,7 +44,9 @@ impl ClaimMissionRewardUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::gamification::domain::entities::daily_mission::DailyMission;
+    use crate::modules::gamification::domain::entities::daily_mission::{
+        DailyMission, MissionType,
+    };
     use crate::modules::gamification::domain::entities::user_mission::UserMission;
     use crate::modules::gamification::domain::repositories::mission_repository::MockMissionRepository;
     use chrono::NaiveDate;
@@ -55,6 +57,7 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let reward_points = 50;
         let target_count = 3;
+        let mission_type = MissionType::ReadArticle;
 
         // Bikin data master misi
         let daily_mission = DailyMission::new(
@@ -63,6 +66,7 @@ mod tests {
             target_count,
             NaiveDate::from_ymd_opt(2026, 3, 6).unwrap(),
             reward_points,
+            mission_type,
         )
         .unwrap();
 
