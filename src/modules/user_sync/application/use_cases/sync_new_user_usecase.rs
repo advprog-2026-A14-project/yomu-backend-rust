@@ -21,10 +21,14 @@ impl<R: UserRepository> SyncNewUserUseCase<R> {
             .await
             .map_err(|e| UserSyncError::DatabaseError(e.to_string()))?
         {
-            return Err(UserSyncError::UserAlreadyExists(format!(
-                "User ID {} sudah terdaftar di Engine DB",
-                dto.user_id
-            )));
+            let existing = self
+                .repository
+                .get_shadow_user(dto.user_id)
+                .await
+                .map_err(|e| UserSyncError::DatabaseError(e.to_string()))?;
+            if let Some(user) = existing {
+                return Ok(user);
+            }
         }
 
         let shadow_user = ShadowUser::new(dto.user_id);
@@ -98,6 +102,18 @@ mod tests {
         async fn check_exists(&self, user_id: Uuid) -> bool {
             self.existing_users.lock().unwrap().contains(&user_id)
         }
+
+        async fn get_shadow_user(&self, _user_id: Uuid) -> Result<Option<ShadowUser>, AppError> {
+            Ok(None)
+        }
+
+        async fn update_total_score(
+            &self,
+            _user_id: Uuid,
+            _score_to_add: i32,
+        ) -> Result<(), AppError> {
+            Ok(())
+        }
     }
 
     // Test 1: sync_user_success - New user synced successfully with total_score=0
@@ -112,11 +128,10 @@ mod tests {
 
         assert!(result.is_ok());
         let shadow_user = result.unwrap();
-        assert_eq!(shadow_user.user_id, user_id);
-        assert_eq!(shadow_user.total_score, 0);
+        assert_eq!(shadow_user.user_id(), user_id);
+        assert_eq!(shadow_user.total_score(), 0);
     }
 
-    // Test 2: sync_user_already_exists - Returns UserSyncError::UserAlreadyExists
     #[tokio::test]
     async fn sync_user_already_exists() {
         let user_id = Uuid::new_v4();
@@ -126,9 +141,9 @@ mod tests {
         let dto = SyncUserRequestDto { user_id };
         let result = use_case.execute(dto).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, UserSyncError::UserAlreadyExists(_)));
+        assert!(result.is_ok());
+        let shadow_user = result.unwrap();
+        assert_eq!(shadow_user.user_id(), user_id);
     }
 
     // Test 3: sync_user_empty_user_id - Invalid UUID handling (zero UUID)
@@ -145,11 +160,10 @@ mod tests {
         // The use case doesn't explicitly reject nil UUIDs, so this tests the boundary
         assert!(result.is_ok());
         let shadow_user = result.unwrap();
-        assert_eq!(shadow_user.user_id, Uuid::nil());
-        assert_eq!(shadow_user.total_score, 0);
+        assert_eq!(shadow_user.user_id(), Uuid::nil());
+        assert_eq!(shadow_user.total_score(), 0);
     }
 
-    // Test 4: sync_user_concurrent_same_user - First succeeds, second fails 409
     #[tokio::test]
     async fn sync_user_concurrent_same_user() {
         let user_id = Uuid::new_v4();
@@ -158,21 +172,15 @@ mod tests {
 
         let dto = SyncUserRequestDto { user_id };
 
-        // First call succeeds
         let result1 = use_case.execute(dto.clone()).await;
         assert!(result1.is_ok());
 
-        // Simulate user now exists in repo
         let repo_with_user = MockUserRepository::with_existing_user(user_id);
         let use_case2 = SyncNewUserUseCase::new(repo_with_user);
 
-        // Second call with same user_id should fail with conflict
         let result2 = use_case2.execute(dto).await;
-        assert!(result2.is_err());
-        assert!(matches!(
-            result2.unwrap_err(),
-            UserSyncError::UserAlreadyExists(_)
-        ));
+        assert!(result2.is_ok());
+        assert_eq!(result2.unwrap().user_id(), user_id);
     }
 
     // Test 5: sync_user_database_error - Returns UserSyncError::DatabaseError
@@ -199,9 +207,8 @@ mod tests {
         let dto = SyncUserRequestDto { user_id };
         let result = use_case.execute(dto).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(matches!(err, UserSyncError::UserAlreadyExists(_)));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().user_id(), user_id);
     }
 
     #[tokio::test]
@@ -215,7 +222,7 @@ mod tests {
 
         assert!(result.is_ok());
         let shadow_user = result.unwrap();
-        assert_eq!(shadow_user.user_id, user_id);
-        assert_eq!(shadow_user.total_score, 0);
+        assert_eq!(shadow_user.user_id(), user_id);
+        assert_eq!(shadow_user.total_score(), 0);
     }
 }
