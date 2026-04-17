@@ -3,7 +3,9 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
 all-features = true
 
 [advisories]
-ignore = []
+ignore = [
+    "RUSTSEC-2023-0071",  # rsa: no fixed upgrade available (transitive from sqlx-mysql)
+]
 
 [bans]
 multiple-versions = "warn"
