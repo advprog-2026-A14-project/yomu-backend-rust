@@ -26,6 +26,7 @@ impl ShadowUser {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_db(user_id: Uuid, total_score: i32) -> Self {
         Self {
             user_id,
