@@ -483,6 +483,13 @@ erDiagram
 | accuracy | DECIMAL(5,2) | NOT NULL, DEFAULT 0.00 | Accuracy percentage |
 | completed_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Completion timestamp |
 
+#### shadow_users
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PRIMARY KEY | Unique user identifier (synced from Java) |
+| total_score | INT | NOT NULL, DEFAULT 0 | Accumulated quiz scores |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Sync timestamp |
+
 ---
 
 ## Running the Application
@@ -675,6 +682,8 @@ mindmap
         /api/internal
             /users/sync
                 POST /users/sync
+            /quiz-history/sync
+                POST /quiz-history/sync
 ```
 
 ### Endpoint Reference
@@ -867,7 +876,7 @@ mindmap
 
 #### Internal API (`/api/internal`)
 
-##### Sync User
+##### Sync User (Idempotent)
 
 | Property | Value |
 |----------|-------|
@@ -878,9 +887,7 @@ mindmap
 **Request Body**:
 ```json
 {
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "john_doe",
-  "email": "john@example.com"
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -895,6 +902,44 @@ mindmap
   }
 }
 ```
+
+Note: This endpoint is idempotent - if the user already exists, it returns the existing user with 201 status.
+
+##### Sync Quiz History
+
+| Property | Value |
+|----------|-------|
+| Method | `POST` |
+| Endpoint | `/api/internal/quiz-history/sync` |
+| Tag | User Sync |
+
+**Request Body**:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "article_id": "660e9500-f30c-52e5-b827-557766551111",
+  "score": 85,
+  "accuracy": 0.92
+}
+```
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Data riwayat kuis berhasil dicatat dan diproses oleh Engine",
+  "data": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "missions_updated": 0,
+    "message": "Data riwayat kuis berhasil dicatat dan diproses oleh Engine"
+  }
+}
+```
+
+**Validation Rules**:
+- `score` must be >= 0
+- `accuracy` must be between 0.0 and 100.0
+- User must exist in Engine DB (sync user first via `/api/internal/users/sync`)
 
 ### Swagger UI
 
