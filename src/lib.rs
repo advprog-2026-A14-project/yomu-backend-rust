@@ -37,6 +37,9 @@ pub struct HealthResponse {
         crate::modules::league::presentation::controllers::clan_controller::get_user_tier_handler,
         // League - Leaderboard
         crate::modules::league::presentation::controllers::score_controller::get_leaderboard_handler,
+        // User Sync
+        crate::modules::user_sync::presentation::controllers::internal_user_controller::sync_user_handler,
+        crate::modules::user_sync::presentation::controllers::quiz_history_controller::sync_quiz_history_handler,
     ),
     components(
         schemas(
@@ -53,6 +56,14 @@ pub struct HealthResponse {
             crate::modules::league::domain::entities::clan::ClanTier,
             crate::modules::league::domain::entities::clan_member::ClanMember,
             crate::modules::league::domain::entities::clan_member::MemberRole,
+            // User Sync DTOs
+            crate::modules::user_sync::application::dto::SyncUserRequestDto,
+            crate::modules::user_sync::application::dto::SyncUserResponseDto,
+            crate::modules::user_sync::application::dto::QuizHistoryRequestDto,
+            crate::modules::user_sync::application::dto::QuizHistoryResponseDto,
+            // User Sync Entities
+            crate::modules::user_sync::domain::entities::shadow_user::ShadowUser,
+            crate::modules::user_sync::domain::entities::quiz_history::QuizHistory,
         )
     ),
     tags(

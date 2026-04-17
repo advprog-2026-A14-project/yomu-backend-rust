@@ -66,3 +66,15 @@ path = "tests/modules/league/infrastructure_test.rs"
 [[test]]
 name = "presentation_test"
 path = "tests/modules/league/presentation_test.rs"
+
+[[test]]
+name = "user_sync_usecase_test"
+path = "tests/modules/user_sync/usecase_test.rs"
+
+[[test]]
+name = "user_sync_infrastructure_test"
+path = "tests/modules/user_sync/infrastructure_test.rs"
+
+[[test]]
+name = "user_sync_presentation_test"
+path = "tests/modules/user_sync/presentation_test.rs"
