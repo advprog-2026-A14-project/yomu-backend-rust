@@ -21,6 +21,18 @@ fn default_tier() -> String {
     "Bronze".to_string()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/leaderboards",
+    params(
+        ("tier" = String, Query, description = "Leaderboard tier (Bronze, Silver, Gold, Diamond)")
+    ),
+    responses(
+        (status = 200, description = "Leaderboard fetched successfully"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "leaderboard"
+)]
 pub async fn get_leaderboard_handler(
     State(state): State<AppState>,
     Query(query): Query<LeaderboardQuery>,

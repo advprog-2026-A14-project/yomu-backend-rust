@@ -14,6 +14,10 @@ impl<R: ClanRepository> CreateClanUseCase<R> {
         Self { repo }
     }
 
+    /// Creates a new clan with the leader automatically as the first member.
+    ///
+    /// Validates that the leader is not already in any clan before creating.
+    /// Returns the created clan with generated ID.
     pub async fn execute(&self, dto: CreateClanDto) -> Result<Clan, AppError> {
         if self.repo.is_user_in_any_clan(dto.leader_id).await? {
             return Err(AppError::BadRequest(

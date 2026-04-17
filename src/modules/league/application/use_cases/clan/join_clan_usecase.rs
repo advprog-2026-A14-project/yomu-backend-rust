@@ -13,6 +13,10 @@ impl<R: ClanRepository> JoinClanUseCase<R> {
         Self { repo }
     }
 
+    /// Joins a user to an existing clan.
+    ///
+    /// Validates clan exists and user is not already in any clan.
+    /// User is added with Member role (not Leader).
     pub async fn execute(&self, dto: JoinClanDto) -> Result<ClanMember, AppError> {
         let clan = self.repo.get_clan_by_id(dto.clan_id).await?;
         if clan.is_none() {

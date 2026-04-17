@@ -19,6 +19,7 @@ impl ClanPostgresRepo {
 
 #[async_trait]
 impl ClanRepository for ClanPostgresRepo {
+    /// Inserts a new clan record into the clans table.
     async fn create_clan(&self, clan: &Clan) -> Result<(), AppError> {
         sqlx::query(
             "INSERT INTO clans (id, name, leader_id, tier, total_score, created_at) VALUES ($1, $2, $3, $4, $5, $6)"
@@ -36,9 +37,13 @@ impl ClanRepository for ClanPostgresRepo {
         Ok(())
     }
 
+    /// Retrieves a clan by ID from PostgreSQL.
+    ///
+    /// Maps database tier string ("Bronze", "Silver", etc.) to ClanTier enum.
+    /// Returns None if clan does not exist.
     async fn get_clan_by_id(&self, clan_id: Uuid) -> Result<Option<Clan>, AppError> {
         let row = sqlx::query_as::<_, ClanRow>(
-            "SELECT id, name, leader_id, tier, total_score, created_at FROM clans WHERE id = $1",
+            "SELECT id, name, leader_id, tier, total_score::int8, created_at FROM clans WHERE id = $1",
         )
         .bind(clan_id)
         .fetch_optional(&self.pool)
@@ -66,6 +71,7 @@ impl ClanRepository for ClanPostgresRepo {
         }
     }
 
+    /// Inserts a new member into the clan_members table.
     async fn add_member(&self, member: &ClanMember) -> Result<(), AppError> {
         sqlx::query("INSERT INTO clan_members (clan_id, user_id, joined_at) VALUES ($1, $2, $3)")
             .bind(member.clan_id())
@@ -78,6 +84,49 @@ impl ClanRepository for ClanPostgresRepo {
         Ok(())
     }
 
+    /// Retrieves all members for a clan.
+    ///
+    /// Role is determined by comparing user_id with the clan's leader_id.
+    async fn get_members_by_clan_id(&self, clan_id: Uuid) -> Result<Vec<ClanMember>, AppError> {
+        // First get the clan to know the leader_id
+        let clan = self.get_clan_by_id(clan_id).await?;
+
+        let leader_id = match clan {
+            Some(c) => c.leader_id(),
+            None => return Ok(vec![]),
+        };
+
+        // Get all members for this clan
+        let rows =
+            sqlx::query("SELECT clan_id, user_id, joined_at FROM clan_members WHERE clan_id = $1")
+                .bind(clan_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        let members = rows
+            .iter()
+            .map(|row| {
+                let user_id: Uuid = row.get("user_id");
+                let joined_at: chrono::DateTime<chrono::Utc> = row.get("joined_at");
+
+                // Determine role based on whether user is the leader
+                let role = if user_id == leader_id {
+                    crate::modules::league::domain::entities::clan_member::MemberRole::Leader
+                } else {
+                    crate::modules::league::domain::entities::clan_member::MemberRole::Member
+                };
+
+                ClanMember::with_joined_at(clan_id, user_id, role, joined_at)
+            })
+            .collect();
+
+        Ok(members)
+    }
+
+    /// Checks if a user is already a member of any clan.
+    ///
+    /// Used for validation before creating or joining a clan.
     async fn is_user_in_any_clan(&self, user_id: Uuid) -> Result<bool, AppError> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM clan_members WHERE user_id = $1")
             .bind(user_id)

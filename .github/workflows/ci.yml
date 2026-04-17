@@ -64,7 +64,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
 
   test:
-    name: Test
+    name: Test Suite
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -77,7 +77,7 @@ jobs:
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 5432:5432
 
@@ -87,7 +87,7 @@ jobs:
           --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 6379:6379
 
@@ -106,17 +106,74 @@ jobs:
       - name: Install sqlx-cli
         run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
 
-
       - name: Run Database Migrations
         run: cargo sqlx migrate run
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
 
-      - name: Run tests
-        run: cargo test --all
+      - name: Install nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Run library unit tests
+        run: cargo nextest run --lib --profile ci
         env:
           DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
           REDIS_URL: redis://localhost:6379
+
+      - name: Run binary unit tests
+        run: cargo nextest run --bin yomu-backend-rust --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run infrastructure tests
+        run: cargo nextest run --test infrastructure_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run presentation tests
+        run: cargo nextest run --test presentation_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run use case tests
+        run: cargo nextest run --test usecase_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run user_sync use case tests
+        run: cargo nextest run --test user_sync_usecase_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run user_sync infrastructure tests
+        run: cargo nextest run --test user_sync_infrastructure_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run user_sync presentation tests
+        run: cargo nextest run --test user_sync_presentation_test --profile ci
+        env:
+          DATABASE_URL: postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run doc tests
+        run: cargo test --doc --all-features
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-results-${{ matrix.os }}
+          path: |
+            target/nextest/*.xml
+            target/nextest/*.log
+          retention-days: 7
 
       - name: Check sqlx prepare (Offline Mode)
         run: cargo sqlx prepare --workspace --check
@@ -142,3 +199,7 @@ jobs:
           tags: yomu-engine:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            IMAGE_SOURCE=https://github.com/${{ github.repository }}
+            IMAGE_DESCRIPTION=Yomu Backend Rust - Gamification Engine
+            IMAGE_LICENSES=MIT
