@@ -57,3 +57,4 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories licenses bans
+          rust-version: "1.88"
