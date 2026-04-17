@@ -252,7 +252,7 @@ mod tests {
     #[tokio::test]
     async fn sync_quiz_no_matching_missions() {
         let user_id = Uuid::new_v4();
-        let today = Utc::now().naive_utc().date();
+        let _today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
 
         let mut mission_repo = MockMissionRepository::new();

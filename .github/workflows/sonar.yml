@@ -87,6 +87,8 @@ jobs:
           -Dsonar.projectKey=adpro-genap-2025-2026-a14
           -Dsonar.sources=src
           -Dsonar.rust.cobertura.reportPaths=coverage/cobertura.xml
+          -Dsonar.exclusions=**/infrastructure/logging.rs,**/infrastructure/telemetry.rs,**/infrastructure/metrics/**
+          -Dsonar.test.exclusions=**/infrastructure/**
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

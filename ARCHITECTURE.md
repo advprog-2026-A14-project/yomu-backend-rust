@@ -1,9 +1,9 @@
 # Yomu Backend Rust Architecture
 
-**Version:** 0.1.0
-**Last Updated:** 2026-04-16
+**Version:** 0.2.0
+**Last Updated:** 2026-04-17
 **Framework:** Axum 0.8.8 + Tower middleware
-**Edition:** Rust 2024, MSRV 1.85
+**Edition:** Rust 2024, MSRV 1.88
 **Ports:** PostgreSQL 5432, Redis 6379, App 8080
 
 ## Table of Contents
@@ -29,7 +29,8 @@
 19. [Security Considerations](#19-security-considerations)
 20. [Performance Considerations](#20-performance-considerations)
 21. [Testing Strategy](#21-testing-strategy)
-22. [Future Considerations](#22-future-considerations)
+22. [Observability Architecture](#22-observability-architecture)
+23. [Future Considerations](#23-future-considerations)
 
 ---
 
@@ -224,24 +225,29 @@ The Gamification module manages achievements, missions, and rewards to drive use
 
 ### 3.3 User Sync Module
 
-The User Sync module handles synchronization of user data from the Java backend, creating shadow users for gamification purposes.
+The User Sync module handles synchronization of user data and quiz history from the Java backend, creating shadow users for gamification purposes.
 
 **Bounded Context:**
 - Shadow user creation from Java outbox events
+- Quiz history recording and score aggregation
 - User existence validation
-- Integration with Java Core service
+- Idempotent sync operations (returning existing user instead of error)
 
 **Core Entities:**
 - `ShadowUser`: Minimal user representation (user_id, total_score)
+- `QuizHistory`: Quiz attempt record (id, user_id, article_id, score, accuracy, completed_at)
 
 **Key Use Cases:**
-- SyncNewUserUseCase: Creates a new shadow user from sync request
+- `SyncNewUserUseCase`: Creates a new shadow user from sync request (idempotent - returns existing user if already exists)
+- `SyncQuizHistoryUseCase`: Records quiz history and updates user's total_score with validation (score >= 0, 0.0 <= accuracy <= 100.0)
 
 **Ports (Repository Traits):**
-- `UserRepository`: ShadowUser persistence operations
+- `UserRepository`: ShadowUser persistence operations (get_shadow_user, update_total_score)
+- `QuizHistoryRepository`: Quiz history persistence operations (insert_quiz_history, get_quiz_histories_by_user)
 
 **Adapters:**
-- `UserPostgresRepo`: PostgreSQL implementation
+- `UserPostgresRepo`: PostgreSQL implementation with total_score update
+- `QuizHistoryPostgresRepo`: PostgreSQL implementation with NUMERIC→FLOAT8 casting for accuracy
 
 ---
 
@@ -563,18 +569,19 @@ graph LR
 The API is organized into two main route groups: public API v1 and internal API.
 
 ```
-/health                          GET  - Health check
-/error                           GET  - Error simulation (dev)
-/swagger-ui                      GET  - Swagger documentation
-/api-docs/openapi.json           GET  - OpenAPI schema
+/health                            GET  - Health check
+/error                             GET  - Error simulation (dev)
+/swagger-ui                        GET  - Swagger documentation
+/api-docs/openapi.json             GET  - OpenAPI schema
 
-/api/v1/clans                    POST - Create a new clan
-/api/v1/clans/{id}               GET  - Get clan details
-/api/v1/clans/{id}/join          POST - Join a clan
-/api/v1/leaderboards             GET  - Get leaderboard (query: tier)
-/api/v1/users/{user_id}/tier     GET  - Get user's tier
+/api/v1/clans                      POST - Create a new clan
+/api/v1/clans/{id}                 GET  - Get clan details
+/api/v1/clans/{id}/join            POST - Join a clan
+/api/v1/leaderboards               GET  - Get leaderboard (query: tier)
+/api/v1/users/{user_id}/tier       GET  - Get user's tier
 
-/api/internal/users/sync          POST - Sync new user from Java
+/api/internal/users/sync           POST - Sync new user from Java (idempotent)
+/api/internal/quiz-history/sync     POST - Sync quiz history and update score
 ```
 
 ### 7.2 Controller Overview
@@ -590,6 +597,9 @@ The API is organized into two main route groups: public API v1 and internal API.
 
 **InternalUserController** (`internal_user_controller.rs`):
 - `sync_user_handler`: POST /api/internal/users/sync
+
+**QuizHistoryController** (`quiz_history_controller.rs`):
+- `sync_quiz_history_handler`: POST /api/internal/quiz-history/sync
 
 ### 7.3 API Response Format
 
@@ -882,13 +892,23 @@ erDiagram
 
 ```mermaid
 erDiagram
-    engine_users {
+    shadow_users ||--o{ quiz_history : "has"
+    shadow_users {
         uuid user_id PK
         int total_score
+        timestamptz created_at
+    }
+    quiz_history {
+        uuid id PK
+        uuid user_id FK
+        uuid article_id
+        int score
+        decimal accuracy
+        timestamptz completed_at
     }
 ```
 
-Note: The User Sync module uses the `engine_users` table as its sole entity, representing shadow users synchronized from the Java backend. No additional tables are required.
+Note: The User Sync module uses the `shadow_users` table for shadow users (synced from Java) and the `quiz_history` table for recording quiz attempts. The `shadow_users` table stores user_id, total_score (accumulated from quiz scores), and created_at.
 
 ---
 
@@ -991,7 +1011,7 @@ sequenceDiagram
     Controller-->>Frontend: 200 OK<br/>ApiResponse<LeaderboardDto>
 ```
 
-### 10.4 Sync User Flow
+### 10.4 Sync User Flow (Idempotent)
 
 ```mermaid
 sequenceDiagram
@@ -1004,21 +1024,66 @@ sequenceDiagram
     JavaBackend->>Controller: POST /api/internal/users/sync<br/>SyncUserRequestDto {user_id}
     Controller->>UseCase: execute(SyncUserRequestDto)
     UseCase->>Repository: exists_shadow_user(user_id)
-    Repository->>Database: SELECT COUNT(*) FROM engine_users<br/>WHERE user_id = $1
+    Repository->>Database: SELECT COUNT(*) FROM shadow_users<br/>WHERE user_id = $1
     Database-->>Repository: count
     Repository-->>UseCase: bool
 
     alt User already exists
-        UseCase-->>Controller: Err(UserSyncError::UserAlreadyExists)
-        Controller-->>JavaBackend: 409 Conflict
-    else New user
-        UseCase->>Repository: insert_shadow_user(ShadowUser)
-        Repository->>Database: INSERT INTO engine_users VALUES (...)
-        Database-->>Repository: OK
-        Repository-->>UseCase: Ok(())
-
+        UseCase->>Repository: get_shadow_user(user_id)
+        Repository->>Database: SELECT * FROM shadow_users<br/>WHERE user_id = $1
+        Database-->>Repository: ShadowUser
+        Repository-->>UseCase: Some(ShadowUser)
         UseCase-->>Controller: Ok(ShadowUser)
         Controller-->>JavaBackend: 201 Created<br/>ApiResponse<SyncUserResponseDto>
+    else New user
+        UseCase->>Repository: insert_shadow_user(ShadowUser)
+        Repository->>Database: INSERT INTO shadow_users VALUES (...)
+        Database-->>Repository: OK
+        Repository-->>UseCase: Ok(())
+        UseCase-->>Controller: Ok(ShadowUser)
+        Controller-->>JavaBackend: 201 Created<br/>ApiResponse<SyncUserResponseDto>
+    end
+```
+
+### 10.5 Sync Quiz History Flow
+
+```mermaid
+sequenceDiagram
+    participant JavaBackend
+    participant Controller
+    participant UseCase
+    participant UserRepo
+    participant QuizRepo
+    participant Database
+
+    JavaBackend->>Controller: POST /api/internal/quiz-history/sync<br/>QuizHistoryRequestDto {user_id, article_id, score, accuracy}
+    Controller->>UseCase: execute(QuizHistoryRequestDto)
+    UseCase->>UserRepo: exists_shadow_user(user_id)
+    UserRepo->>Database: SELECT COUNT(*) FROM shadow_users WHERE user_id = $1
+    Database-->>UserRepo: bool
+    UserRepo-->>UseCase: bool
+
+    alt User not found
+        UseCase-->>Controller: Err(UserSyncError::UserNotFound)
+        Controller-->>JavaBackend: 404 Not Found
+    else Validation failed
+        alt score < 0 or accuracy not in [0.0, 100.0]
+            UseCase-->>Controller: Err(UserSyncError::InvalidQuizData)
+            Controller-->>JavaBackend: 400 Bad Request
+        end
+    else Valid quiz data and user exists
+        UseCase->>QuizRepo: insert_quiz_history(QuizHistory)
+        QuizRepo->>Database: INSERT INTO quiz_history VALUES (...)
+        Database-->>QuizRepo: OK
+        QuizRepo-->>UseCase: Ok(())
+
+        UseCase->>UserRepo: update_total_score(user_id, score)
+        UserRepo->>Database: UPDATE shadow_users SET total_score = total_score + $1 WHERE user_id = $2
+        Database-->>UserRepo: OK
+        UserRepo-->>UseCase: Ok(())
+
+        UseCase-->>Controller: Ok(QuizHistoryResponseDto)
+        Controller-->>JavaBackend: 201 Created<br/>ApiResponse<QuizHistoryApiResponse>
     end
 ```
 
@@ -1108,11 +1173,33 @@ pub enum LeagueError {
 | `LeagueError::UserAlreadyInClan` | 400 | User already a member |
 | `LeagueError::UserNotInAnyClan` | 400 | User has no clan |
 | `LeagueError::MaxClansReached` | 400 | System clan limit |
-| `UserSyncError::UserAlreadyExists` | 409 | Duplicate user sync |
-| `UserSyncError::SyncFailed` | 500 | Sync operation failed |
+| `UserSyncError::UserNotFound` | 404 | User not in Engine DB |
+| `UserSyncError::InvalidQuizData` | 400 | Invalid score or accuracy |
+| `UserSyncError::ValidationError` | 400 | Request validation failed |
 | `UserSyncError::DatabaseError` | 500 | Database error |
 
-### 11.5 Error Propagation
+### 11.5 UserSyncError Enum
+
+Domain-specific errors for the user sync module:
+
+```rust
+#[derive(Error, Debug)]
+pub enum UserSyncError {
+    #[error("User not found: {0}")]
+    UserNotFound(String),
+
+    #[error("Invalid quiz data: {0}")]
+    InvalidQuizData(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+}
+```
+
+### 11.6 Error Propagation
 
 ```mermaid
 flowchart TB
@@ -2215,7 +2302,144 @@ cargo sqlx prepare --workspace --check
 
 ---
 
-## 22. Future Considerations
+## 22. Observability Architecture
+
+### 22.1 Overview
+
+The Yomu Backend Rust implements a comprehensive observability stack with structured logging, metrics collection, and distributed tracing. All observability components are integrated into the application's startup sequence and maintain production-grade reliability.
+
+### 22.2 Structured JSON Logging
+
+**Implementation:** `src/shared/infrastructure/logging.rs`
+
+**Features:**
+- JSON-formatted log output for machine parsing
+- Hourly rotating file appender via `tracing-appender`
+- Dual output: file (JSON) + console (pretty, ANSI colors)
+- Thread ID and request ID correlation
+- File path and line number for all log entries
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUST_LOG` | `yomu_backend_rust=debug,tower_http=info` | Log level filter |
+| `LOG_DIR` | `/var/log/yomu` | Log file directory |
+
+**Log Format:**
+```json
+{"timestamp":"2026-04-17T10:30:00Z","level":"INFO","target":"yomu_backend_rust::modules::league","message":"Clan created","thread_id":"abc123","file":"clan_service.rs:42","line":42}
+```
+
+### 22.3 Prometheus Metrics
+
+**Implementation:** `src/shared/infrastructure/metrics/`
+
+**Endpoint:** `GET /metrics` (Prometheus scrape target)
+
+**Metrics Exposed:**
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `http_requests_total` | Counter | method, path, status | Total HTTP requests |
+| `http_request_duration_seconds` | Histogram | method, path | Request latency |
+| `db_pool_idle` | Gauge | - | Idle DB connections |
+| `db_pool_active` | Gauge | - | Active DB connections |
+| `redis_pool_idle` | Gauge | - | Idle Redis connections |
+| `redis_pool_active` | Gauge | - | Active Redis connections |
+| `cache_hits_total` | Counter | - | Cache hit count |
+| `cache_misses_total` | Counter | - | Cache miss count |
+
+**Histogram Buckets (request duration):**
+```
+0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0 seconds
+```
+
+### 22.4 OpenTelemetry Distributed Tracing
+
+**Implementation:** `src/shared/infrastructure/telemetry.rs`
+
+**Features:**
+- gRPC OTLP exporter for Grafana Tempo
+- Automatic trace propagation via `axum-tracing-opentelemetry`
+- Custom span attributes for business logic
+- Configurable sampling rate
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `https://otlp-gateway-prod-us-central1.grafana.net/otlp` | OTLP collector endpoint |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` | Protocol (grpc or http/protobuf) |
+| `OTEL_SERVICE_NAME` | `yomu-backend-rust` | Service identifier |
+| `OTEL_ENVIRONMENT` | `development` | Deployment environment |
+| `OTEL_TRACES_SAMPLER_ARG` | `0.1` | Trace sampling rate (0.0-1.0) |
+| `GRAFANA_API_KEY` | - | Bearer token for Grafana Cloud |
+
+**Trace Context:**
+- Service name, environment, version
+- HTTP method, path, status code
+- Database query duration
+- Cache operations
+
+### 22.5 Sentry Error Tracking
+
+**Integration:** Full error tracking with APM capabilities
+
+**Features:**
+- Automatic error capturing in Axum handlers
+- `tracing` integration for structured errors
+- Stack trace collection with source context
+- Release/environment tagging
+- Performance monitoring (APM)
+
+**Configuration:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENTRY_DSN` | - | Sentry Data Source Number |
+| `SENTRY_ENVIRONMENT` | `development` | Deployment environment |
+
+**Performance Spans:**
+- HTTP request lifecycle
+- Database queries
+- Redis operations
+- External API calls
+
+### 22.6 Health Check Endpoint
+
+**Endpoint:** `GET /health`
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "postgres": "connected",
+  "redis": "connected"
+}
+```
+
+**Checks:**
+- PostgreSQL connection pool availability
+- Redis connection availability
+
+### 22.7 CI Observability Integration
+
+**cargo-nextest:**
+- Faster test execution with parallel workers
+- Enhanced failure reporting with interleaved output
+- JUnit XML export for CI systems
+
+**cargo-audit:**
+- Daily vulnerability scanning in CI
+- Advisory database updates
+- Immediate notification for new vulnerabilities
+
+**GitHub Actions Workflows:**
+- `ci.yml` - Format, clippy, doc, tests, Docker build
+- `security-audit.yml` - RustSec vulnerability scanning
+- `release.yml` - Multi-platform Docker image to GHCR
+
+---
+
+## 23. Future Considerations
 
 ### 22.1 Scalability
 

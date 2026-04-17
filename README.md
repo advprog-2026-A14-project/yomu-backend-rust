@@ -112,7 +112,7 @@ The service exposes REST APIs consumed by the Next.js frontend through a BFF (Ba
 ### Rust Edition and MSRV
 
 - **Edition**: 2024
-- **MSRV (Minimum Supported Rust Version)**: 1.85
+- **MSRV (Minimum Supported Rust Version)**: 1.88
 
 ---
 
@@ -281,7 +281,7 @@ graph TD
 
 | Software | Version | Purpose |
 |----------|---------|---------|
-| Rust | 1.85+ | Compiler toolchain |
+| Rust | 1.88+ | Compiler toolchain |
 | Cargo | Latest | Package manager |
 | Docker | 24.0+ | Container runtime |
 | Docker Compose | 2.20+ | Multi-container orchestration |
@@ -483,6 +483,13 @@ erDiagram
 | accuracy | DECIMAL(5,2) | NOT NULL, DEFAULT 0.00 | Accuracy percentage |
 | completed_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Completion timestamp |
 
+#### shadow_users
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| user_id | UUID | PRIMARY KEY | Unique user identifier (synced from Java) |
+| total_score | INT | NOT NULL, DEFAULT 0 | Accumulated quiz scores |
+| created_at | TIMESTAMPTZ | NOT NULL, DEFAULT NOW() | Sync timestamp |
+
 ---
 
 ## Running the Application
@@ -675,6 +682,8 @@ mindmap
         /api/internal
             /users/sync
                 POST /users/sync
+            /quiz-history/sync
+                POST /quiz-history/sync
 ```
 
 ### Endpoint Reference
@@ -867,7 +876,7 @@ mindmap
 
 #### Internal API (`/api/internal`)
 
-##### Sync User
+##### Sync User (Idempotent)
 
 | Property | Value |
 |----------|-------|
@@ -878,9 +887,7 @@ mindmap
 **Request Body**:
 ```json
 {
-  "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "john_doe",
-  "email": "john@example.com"
+  "user_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
@@ -895,6 +902,44 @@ mindmap
   }
 }
 ```
+
+Note: This endpoint is idempotent - if the user already exists, it returns the existing user with 201 status.
+
+##### Sync Quiz History
+
+| Property | Value |
+|----------|-------|
+| Method | `POST` |
+| Endpoint | `/api/internal/quiz-history/sync` |
+| Tag | User Sync |
+
+**Request Body**:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "article_id": "660e9500-f30c-52e5-b827-557766551111",
+  "score": 85,
+  "accuracy": 0.92
+}
+```
+
+**Response Example**:
+```json
+{
+  "success": true,
+  "message": "Data riwayat kuis berhasil dicatat dan diproses oleh Engine",
+  "data": {
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "missions_updated": 0,
+    "message": "Data riwayat kuis berhasil dicatat dan diproses oleh Engine"
+  }
+}
+```
+
+**Validation Rules**:
+- `score` must be >= 0
+- `accuracy` must be between 0.0 and 100.0
+- User must exist in Engine DB (sync user first via `/api/internal/users/sync`)
 
 ### Swagger UI
 
@@ -1419,6 +1464,8 @@ RUST_LOG=warn    # Warnings only
 RUST_LOG=error   # Errors only
 ```
 
+Log files are written to `LOG_DIR` (default: `/var/log/yomu`) with hourly rotation.
+
 ### Request Tracing
 
 Tower middleware provides:
@@ -1426,13 +1473,56 @@ Tower middleware provides:
 - Timeout enforcement (10 seconds)
 - CORS headers
 
-### Metrics (Future)
+### Prometheus Metrics
 
-Planned integration:
-- Prometheus metrics endpoint
-- Request duration histograms
-- Database query timing
-- Cache hit/miss ratios
+The `/metrics` endpoint exposes Prometheus-compatible metrics:
+
+```
+GET /metrics
+```
+
+**Available Metrics:**
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | Counter | Total HTTP requests by method, path, status |
+| `http_request_duration_seconds` | Histogram | Request latency with configurable buckets |
+| `db_pool_idle` | Gauge | Idle PostgreSQL connections |
+| `db_pool_active` | Gauge | Active PostgreSQL connections |
+| `redis_pool_idle` | Gauge | Idle Redis connections |
+| `redis_pool_active` | Gauge | Active Redis connections |
+| `cache_hits_total` | Counter | Cache hit count |
+| `cache_misses_total` | Counter | Cache miss count |
+
+### OpenTelemetry Tracing
+
+Distributed tracing via OpenTelemetry with gRPC OTLP exporter:
+- Automatic span creation for HTTP requests
+- Database query tracing
+- Configurable sampling rate via `OTEL_TRACES_SAMPLER_ARG`
+
+Configure via environment variables:
+- `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP collector endpoint
+- `OTEL_SERVICE_NAME` - Service identifier
+- `OTEL_ENVIRONMENT` - deployment environment
+
+### Sentry Error Tracking
+
+Error tracking and APM via Sentry:
+- Automatic error capture in Axum handlers
+- Stack traces with source context
+- Performance monitoring (APM)
+- Release/environment tagging
+
+Configure via:
+- `SENTRY_DSN` - Data Source Number
+- `SENTRY_ENVIRONMENT` - deployment environment
+
+### Logging Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUST_LOG` | `yomu_backend_rust=debug,tower_http=info` | Log level filter |
+| `LOG_DIR` | `/var/log/yomu` | Log file directory |
 
 ---
 
@@ -1512,22 +1602,32 @@ Runs on every push to any branch:
 | **fmt** | Check code formatting with rustfmt |
 | **clippy** | Run clippy lints with warnings as errors |
 | **doc** | Build documentation |
-| **test** | Run all tests with PostgreSQL and Redis services |
+| **test** | Run all tests with PostgreSQL and Redis services (cargo-nextest) |
 | **docker** | Build Docker image (after all jobs pass) |
 
-### SonarCloud Workflow (sonar.yml)
+### Security Audit Workflow (security-audit.yml)
 
-Runs on push and pull requests:
+Vulnerability scanning via cargo-audit:
 
 | Step | Description |
 |------|-------------|
-| Checkout | Fetch full history for coverage |
-| Setup Rust | Install Rust toolchain |
-| Install tarpaulin | Code coverage tool |
-| Install sqlx-cli | Migration tool |
-| Run migrations | Set up test database |
-| Generate coverage | Run tarpaulin with Cobertura output |
-| Sonar scan | Upload to SonarCloud |
+| Setup | Install Rust toolchain |
+| Audit | Run cargo-audit against advisory database |
+| Schedule | Daily scan on schedule + every push |
+
+### Release Workflow (release.yml)
+
+Multi-platform Docker image build and push to GitHub Container Registry (GHCR):
+
+| Step | Description |
+|------|-------------|
+| Setup | Configure Docker Buildx |
+| Meta | Extract version from Cargo.toml |
+| Build | Multi-platform image (linux/amd64, linux/arm64) |
+| Push | Push to GHCR with version tags |
+| Labels | Add SBOM and provenance labels |
+
+**Image Location:** `ghcr.io/<owner>/yomu-backend-rust`
 
 ### Environment Variables for CI
 
