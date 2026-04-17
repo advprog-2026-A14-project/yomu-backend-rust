@@ -1,6 +1,25 @@
 [advisories]
 ignore = []
 
+[licenses]
+confidence-threshold = 0.95
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSD-3-Clause-Clarity",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "CC0-1.0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-3.0-DFS-2016",
+]
+exceptions = []
+
 [database]
 fetch = true
 stale = false
@@ -12,3 +31,7 @@ show_tree = true
 
 [yanked]
 enabled = true
+
+[graph]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+all-features = true
