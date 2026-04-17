@@ -132,4 +132,38 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         Ok(())
     }
+
+    async fn get_all_achievements(&self) -> Result<Vec<Achievement>, String> {
+        let records = sqlx::query!(
+            r#"
+            SELECT id, name, milestone_target, achievement_type, reward_points 
+            FROM achievements
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_all_achievements): {}", e))?;
+
+        let mut achievements = Vec::new();
+        for row in records {
+            let ach_type = match row.achievement_type.as_str() {
+                "Rare" => AchievementType::Rare,
+                "Epic" => AchievementType::Epic,
+                "Legendary" => AchievementType::Legendary,
+                _ => AchievementType::Common,
+            };
+
+            if let Ok(achievement) = Achievement::new(
+                row.id, 
+                row.name, 
+                row.milestone_target, 
+                ach_type, 
+                row.reward_points
+            ) {
+                achievements.push(achievement);
+            }
+        }
+
+        Ok(achievements)
+    }
 }

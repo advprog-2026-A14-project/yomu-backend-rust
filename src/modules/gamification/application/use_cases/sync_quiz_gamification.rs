@@ -1,9 +1,11 @@
 use chrono::Utc;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::entities::achievement::Achievement;
 use crate::modules::gamification::domain::entities::daily_mission::DailyMission;
+use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
 use crate::modules::gamification::domain::entities::user_mission::UserMission;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
@@ -36,8 +38,7 @@ impl SyncQuizGamificationUseCase {
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
 
         for mission in active_missions {
-            // filter dan cek deskripsi atau tipe misi, misal misi baca
-            if mission.description().to_lowercase().contains("baca") {
+            if let MissionType::ReadArticle = mission.mission_type() {
                 let mut user_mission = match self.mission_repo.get_user_mission(payload.user_id, mission.id()).await? {
                     Some(um) => um,
                     None => {
@@ -51,6 +52,13 @@ impl SyncQuizGamificationUseCase {
             }
         }
 
+        let all_achievements = self.achievement_repo.get_all_achievements().await?;
+
+        let achievement_map: HashMap<_, _> = all_achievements
+            .into_iter()
+            .map(|ach| (ach.id(), ach))
+            .collect();
+
         let user_achievements = self
             .achievement_repo
             .get_user_achievements(payload.user_id)
@@ -61,11 +69,7 @@ impl SyncQuizGamificationUseCase {
                 continue;
             }
 
-            if let Some(achievement_master) = self
-                .achievement_repo
-                .get_achievement_by_id(user_ach.achievement_id())
-                .await?
-            {
+            if let Some(achievement_master) = achievement_map.get(&user_ach.achievement_id()) {
                 user_ach.add_progress(1, achievement_master.milestone_target(), now);
 
                 // reward otomatis dapat habis selesaikan achievement
@@ -92,45 +96,17 @@ mod tests {
     use chrono::NaiveDate;
     use uuid::Uuid;
 
-    mockall::mock! {
-        pub MissionRepo { }
-
-        #[async_trait::async_trait]
-        impl MissionRepository for MissionRepo {
-            async fn get_active_missions_by_date(
-                &self,
-                date: NaiveDate,
-            ) -> Result<Vec<DailyMission>, String>;
-            async fn get_user_mission(
-                &self,
-                user_id: Uuid,
-                mission_id: Uuid,
-            ) -> Result<Option<UserMission>, String>;
-            async fn save_user_mission(&self, user_mission: &UserMission) -> Result<(), String>;
-            async fn get_daily_mission_by_id(&self, id: Uuid) -> Result<Option<DailyMission>, String>;
-            async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String>;
-        }
-    }
-
-    mockall::mock! {
-        pub AchievementRepo { }
-
-        #[async_trait::async_trait]
-        impl AchievementRepository for AchievementRepo {
-            async fn get_achievement_by_id(&self, id: Uuid) -> Result<Option<Achievement>, String>;
-            async fn get_user_achievements(&self, user_id: Uuid) -> Result<Vec<UserAchievement>, String>;
-            async fn save_user_achievement(&self, user_achievement: &UserAchievement) -> Result<(), String>;
-            async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String>;
-        }
-    }
+    use crate::modules::gamification::domain::repositories::achievement_repository::MockAchievementRepository;
+    use crate::modules::gamification::domain::repositories::mission_repository::MockMissionRepository;
 
     fn create_test_mission(
         id: Uuid,
         description: &str,
         target: i32,
         date: NaiveDate,
+        mission_type: MissionType,
     ) -> DailyMission {
-        DailyMission::new(id, description.to_string(), target, date, 100).unwrap()
+        DailyMission::new(id, description.to_string(), target, date, 100, mission_type).unwrap()
     }
 
     fn create_test_achievement(id: Uuid, name: &str, target: i32, reward: i32) -> Achievement {
@@ -159,10 +135,11 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today, mission_type);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(move |_| Ok(vec![mission]));
@@ -175,10 +152,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -193,11 +174,12 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today, mission_type);
         let existing_user_mission = UserMission::new(user_id, mission_id);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
@@ -210,10 +192,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -228,12 +214,13 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today, mission_type);
         let mut existing_user_mission = UserMission::new(user_id, mission_id);
         existing_user_mission.add_progress(3, 3);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
@@ -246,10 +233,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -264,15 +255,19 @@ mod tests {
         let _today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -287,7 +282,7 @@ mod tests {
         let achievement_id = Uuid::new_v4();
         let payload = create_payload(user_id);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
@@ -295,14 +290,14 @@ mod tests {
         let achievement = create_test_achievement(achievement_id, "Quiz Starter", 5, 50);
         let user_achievement = UserAchievement::new(user_id, achievement_id);
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_achievement_by_id()
-            .return_once(|_| Ok(Some(achievement)));
+            .expect_get_all_achievements()
+            .return_once(move || Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_save_user_achievement()
@@ -321,7 +316,7 @@ mod tests {
         let achievement_id = Uuid::new_v4();
         let payload = create_payload(user_id);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
@@ -330,14 +325,14 @@ mod tests {
         let mut user_achievement = UserAchievement::new(user_id, achievement_id);
         user_achievement.add_progress(1, 1, Utc::now());
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_achievement_by_id()
-            .return_once(|_| Ok(Some(achievement)));
+            .expect_get_all_achievements()
+            .return_once(move || Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_add_user_score()
@@ -360,7 +355,7 @@ mod tests {
         let achievement_id = Uuid::new_v4();
         let payload = create_payload(user_id);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
@@ -369,14 +364,14 @@ mod tests {
         let mut user_achievement = UserAchievement::new(user_id, achievement_id);
         user_achievement.add_progress(1, 2, Utc::now());
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_achievement_by_id()
-            .return_once(|_| Ok(Some(achievement)));
+            .expect_get_all_achievements()
+            .return_once(move || Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_add_user_score()
@@ -398,10 +393,11 @@ mod tests {
         let user_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(Uuid::new_v4(), "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(Uuid::new_v4(), "Baca 3 Berita", 3, today, mission_type);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
@@ -414,10 +410,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -436,15 +436,19 @@ mod tests {
             accuracy: 85.0,
         };
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -459,10 +463,11 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 5 Artikel", 5, today);
+        let mission = create_test_mission(mission_id, "Baca 5 Artikel", 5, today, mission_type);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
@@ -475,10 +480,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -493,12 +502,13 @@ mod tests {
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today, mission_type);
         let mut existing_user_mission = UserMission::new(user_id, mission_id);
         existing_user_mission.add_progress(3, 3);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
@@ -511,10 +521,14 @@ mod tests {
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -530,11 +544,12 @@ mod tests {
         let mission_id_2 = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
+        let mission_type = MissionType::ReadArticle;
 
-        let mission1 = create_test_mission(mission_id_1, "Baca 3 Berita", 3, today);
-        let mission2 = create_test_mission(mission_id_2, "Baca 5 Artikel", 5, today);
+        let mission1 = create_test_mission(mission_id_1, "Baca 3 Berita", 3, today, mission_type);
+        let mission2 = create_test_mission(mission_id_2, "Baca 5 Artikel", 5, today, mission_type);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission1, mission2]));
@@ -549,10 +564,14 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .return_once(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -566,10 +585,11 @@ mod tests {
         let user_id = Uuid::new_v4();
         let mission_id = Uuid::new_v4();
         let today = Utc::now().naive_utc().date();
+        let mission_type = MissionType::ReadArticle;
 
-        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today);
+        let mission = create_test_mission(mission_id, "Baca 3 Berita", 3, today, mission_type);
 
-        let mut mission_repo = MockMissionRepo::new();
+        let mut mission_repo = MockMissionRepository::new();
         mission_repo
             .expect_get_active_missions_by_date()
             .times(2)
@@ -585,11 +605,15 @@ mod tests {
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepo::new();
+        let mut achievement_repo = MockAchievementRepository::new();
         achievement_repo
             .expect_get_user_achievements()
             .times(2)
             .returning(|_| Ok(vec![]));
+
+        achievement_repo
+            .expect_get_all_achievements()
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));

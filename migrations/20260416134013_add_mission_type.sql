@@ -1,0 +1,1 @@
+ALTER TABLE daily_missions ADD COLUMN mission_type VARCHAR(50) NOT NULL DEFAULT 'ReadArticle';

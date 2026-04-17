@@ -5,6 +5,7 @@ use chrono::NaiveDate;
 
 use crate::modules::gamification::domain::ports::mission_repository::MissionRepository;
 use crate::modules::gamification::domain::entities::mission::{DailyMission, UserMission};
+use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 
 pub struct PostgresMissionRepository {
     pub pool: PgPool,
@@ -86,7 +87,7 @@ impl MissionRepository for PostgresMissionRepository {
     async fn get_active_missions_by_date(&self, date: NaiveDate) -> Result<Vec<DailyMission>, String> {
         let records = sqlx::query!(
             r#"
-            SELECT id, description, target_count, date, reward_points 
+            SELECT id, description, target_count, date, reward_points, mission_type
             FROM daily_missions 
             WHERE date = $1
             "#,
@@ -99,12 +100,19 @@ impl MissionRepository for PostgresMissionRepository {
         // Mengubah Vec dari row database menjadi Vec<DailyMission>
         let mut missions = Vec::new();
         for row in records {
+            let m_type = match row.mission_type.as_str() {
+                "Quiz" => MissionType::Quiz,
+                "DailyLogin" => MissionType::DailyLogin,
+                _ => MissionType::ReadArticle,
+            };
+
             if let Ok(mission) = DailyMission::new(
                 row.id, 
                 row.description, 
                 row.target_count, 
                 row.date, 
-                row.reward_points
+                row.reward_points,
+                m_type
             ) {
                 missions.push(mission);
             }
@@ -116,7 +124,7 @@ impl MissionRepository for PostgresMissionRepository {
     async fn get_daily_mission_by_id(&self, id: Uuid) -> Result<Option<DailyMission>, String> {
        let record = sqlx::query!(
             r#"
-            SELECT id, description, target_count, date, reward_points 
+            SELECT id, description, target_count, date, reward_points, mission_type 
             FROM daily_missions 
             WHERE id = $1
             "#,
@@ -128,12 +136,19 @@ impl MissionRepository for PostgresMissionRepository {
 
         match record {
             Some(row) => {
+                let m_type = match row.mission_type.as_str() {
+                    "Quiz" => MissionType::Quiz,
+                    "DailyLogin" => MissionType::DailyLogin,
+                    _ => MissionType::ReadArticle,
+                };
+
                 let mission = DailyMission::new(
                     row.id, 
                     row.description, 
                     row.target_count, 
                     row.date, 
-                    row.reward_points
+                    row.reward_points,
+                    m_type
                 ).map_err(|e| e.to_string())?;
                 Ok(Some(mission))
             },
