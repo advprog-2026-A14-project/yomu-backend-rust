@@ -1,9 +1,8 @@
 //! Structured JSON logging with tracing-appender file rotation.
 //!
 //! Provides `init_logging()` which sets up:
-//! - `EnvFilter` from RUST_LOG env var (default: "yomu_backend_rust=debug,tower_http=info")
+//! - `EnvFilter` from RUST_LOG env var (default: "yomu_backend_rust=info,tower_http=warn")
 //! - JSON file output via `fmt::layer().json()` to `tracing_appender::non_blocking`
-//! - Console pretty output for development
 //! - Hourly file rotation via `RollingFileAppender`
 //!
 //! LOG_DIR configurable via env var (default: "/var/log/yomu")
@@ -27,7 +26,7 @@ impl Default for LogConfig {
         Self {
             log_dir: std::env::var("LOG_DIR").unwrap_or_else(|_| "/var/log/yomu".into()),
             log_level: std::env::var("RUST_LOG")
-                .unwrap_or_else(|_| "yomu_backend_rust=debug,tower_http=info".into()),
+                .unwrap_or_else(|_| "yomu_backend_rust=info,tower_http=warn".into()),
         }
     }
 }
@@ -82,19 +81,9 @@ pub fn init_logging(config: Option<LogConfig>) -> WorkerGuard {
         .with_file(true)
         .with_line_number(true);
 
-    // Pretty console for development (with ansi colors)
-    let console_layer = fmt::layer()
-        .pretty()
-        .with_target(true)
-        .with_ansi(true)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true);
-
     tracing_subscriber::registry()
         .with(env_filter)
         .with(file_layer)
-        .with(console_layer)
         .init();
 
     guard
