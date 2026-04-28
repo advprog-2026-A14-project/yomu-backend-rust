@@ -2,7 +2,6 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
     Resource, propagation::TraceContextPropagator, trace::Sampler, trace::SdkTracerProvider,
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub fn init_telemetry() -> Result<SdkTracerProvider, Box<dyn std::error::Error + Send + Sync>> {
     let service_name =
@@ -42,13 +41,8 @@ pub fn init_telemetry() -> Result<SdkTracerProvider, Box<dyn std::error::Error +
     Ok(tracer_provider)
 }
 
-pub fn init_telemetry_subscriber() {
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+use tracing_subscriber::layer::Layer;
 
-    // Use try_init instead of init to avoid panic if already initialized
-    let _ = tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_opentelemetry::layer())
-        .try_init();
+pub fn otel_layer() -> impl Layer<tracing_subscriber::Registry> {
+    tracing_opentelemetry::layer()
 }

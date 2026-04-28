@@ -7,6 +7,7 @@
 //!
 //! LOG_DIR configurable via env var (default: "/var/log/yomu")
 
+use super::telemetry::otel_layer;
 use std::path::Path;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
@@ -82,6 +83,7 @@ pub fn init_logging(config: Option<LogConfig>) -> WorkerGuard {
         .with_line_number(true);
 
     tracing_subscriber::registry()
+        .with(otel_layer())
         .with(env_filter)
         .with(file_layer)
         .init();

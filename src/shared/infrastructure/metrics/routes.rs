@@ -1,18 +1,14 @@
 use axum::{Extension, Router, routing::get};
-use prometheus_client::encoding::text::encode;
+use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
 
-pub fn metrics_routes() -> Router<crate::AppState> {
+pub fn metrics_routes() -> Router {
     Router::new().route("/metrics", get(metrics_handler))
 }
 
 async fn metrics_handler(
-    Extension(metrics): Extension<
-        std::sync::Arc<crate::shared::infrastructure::metrics::AppMetrics>,
-    >,
+    Extension(handle): Extension<PrometheusHandle>,
 ) -> impl axum::response::IntoResponse {
-    let mut buffer = String::new();
-    #[allow(clippy::expect_used)]
-    encode(&mut buffer, &metrics.registry).expect("metrics encoding should not fail");
+    let buffer = handle.render();
     (
         [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
         buffer,
