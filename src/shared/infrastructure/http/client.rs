@@ -12,19 +12,19 @@ pub struct HttpClient {
 
 impl HttpClient {
     /// Create a new HTTP client
-    #[must_use]
     #[allow(clippy::expect_used)]
-    pub fn new(base_url: String, api_key: String) -> Self {
+    pub fn new(base_url: String, api_key: String) -> Result<Self, HttpError> {
         let inner = Client::builder()
+            .pool_max_idle_per_host(10)
             .timeout(Duration::from_secs(10))
             .build()
-            .expect("Failed to create HTTP client - this is unrecoverable at startup");
+            .map_err(|e| HttpError::ClientCreation(e.to_string()))?;
 
-        Self {
+        Ok(Self {
             inner,
             base_url,
             api_key,
-        }
+        })
     }
 
     /// Get the base URL
@@ -79,6 +79,7 @@ impl HttpClient {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum HttpError {
+    ClientCreation(String),
     Request(String),
     Status(u16),
     Body(String),
@@ -87,6 +88,7 @@ pub enum HttpError {
 impl std::fmt::Display for HttpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            HttpError::ClientCreation(msg) => write!(f, "Failed to create HTTP client: {msg}"),
             HttpError::Request(msg) => write!(f, "HTTP request failed: {msg}"),
             HttpError::Status(code) => {
                 write!(f, "HTTP status {code}: {}", status_message(*code))
@@ -140,7 +142,8 @@ mod tests {
 
     #[test]
     fn http_client_new_creates_valid_client() {
-        let client = HttpClient::new("http://localhost:8080".to_string(), "test-key".to_string());
+        let client = HttpClient::new("http://localhost:8080".to_string(), "test-key".to_string())
+            .expect("Failed to create HTTP client");
         assert_eq!(client.base_url(), "http://localhost:8080");
     }
 }
