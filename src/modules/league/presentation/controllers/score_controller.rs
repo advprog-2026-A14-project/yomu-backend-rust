@@ -1,6 +1,7 @@
 use axum::{
     extract::{Query, State},
-    response::Json,
+    http::header::{CACHE_CONTROL, HeaderValue},
+    response::{IntoResponse, Json, Response},
 };
 
 use crate::AppState;
@@ -36,14 +37,22 @@ fn default_tier() -> String {
 pub async fn get_leaderboard_handler(
     State(state): State<AppState>,
     Query(query): Query<LeaderboardQuery>,
-) -> Result<Json<ApiResponse<LeaderboardDto>>, AppError> {
+) -> Result<Response, AppError> {
     let redis_repo = LeaderboardRedisRepo::new(state.redis);
     let use_case = GetLeaderboardUseCase::new(redis_repo);
 
     let leaderboard = use_case.execute(query.tier).await?;
 
-    Ok(Json(ApiResponse::success(
+    let mut response = Json(ApiResponse::success(
         "Leaderboard fetched successfully",
         leaderboard,
-    )))
+    ))
+    .into_response();
+
+    response.headers_mut().insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("public, max-age=60"),
+    );
+
+    Ok(response)
 }
