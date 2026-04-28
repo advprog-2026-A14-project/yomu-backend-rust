@@ -14,6 +14,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     timeout::TimeoutLayer,
     trace::TraceLayer,
@@ -132,6 +133,7 @@ async fn async_main(app_config: config::AppConfig) {
     };
 
     let middleware_stack = ServiceBuilder::new()
+        .layer(CompressionLayer::new())
         .layer(prometheus_layer)
         .layer(TraceLayer::new_for_http())
         .layer(TimeoutLayer::with_status_code(
