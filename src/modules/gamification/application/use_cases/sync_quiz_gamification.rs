@@ -1,4 +1,6 @@
 use chrono::Utc;
+use futures::FutureExt;
+use futures::future::join_all;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -37,52 +39,97 @@ impl SyncQuizGamificationUseCase {
 
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
 
-        for mission in active_missions {
-            if let MissionType::ReadArticle = mission.mission_type() {
-                let mut user_mission = match self.mission_repo.get_user_mission(payload.user_id, mission.id()).await? {
-                    Some(um) => um,
-                    None => {
-                        crate::modules::gamification::domain::entities::user_mission::UserMission::new(payload.user_id, mission.id())
-                    }
-                };
-
-                user_mission.add_progress(1, mission.target_count());
-
-                self.mission_repo.save_user_mission(&user_mission).await?;
-            }
-        }
-
-        let all_achievements = self.achievement_repo.get_all_achievements().await?;
-
-        let achievement_map: HashMap<_, _> = all_achievements
+        let read_missions: Vec<_> = active_missions
             .into_iter()
-            .map(|ach| (ach.id(), ach))
+            .filter(|m| matches!(m.mission_type(), MissionType::ReadArticle))
             .collect();
+
+        if !read_missions.is_empty() {
+            let mission_ids: Vec<_> = read_missions.iter().map(|m| m.id()).collect();
+
+            let existing_user_missions = self
+                .mission_repo
+                .get_user_missions_batch(payload.user_id, mission_ids)
+                .await?;
+
+            let existing_map: HashMap<_, _> = existing_user_missions
+                .into_iter()
+                .map(|um| (um.mission_id(), um))
+                .collect();
+
+            let user_missions_to_save: Vec<UserMission> = read_missions
+                .into_iter()
+                .map(|mission| {
+                    let mut user_mission = existing_map
+                        .get(&mission.id())
+                        .cloned()
+                        .unwrap_or_else(|| UserMission::new(payload.user_id, mission.id()));
+                    user_mission.add_progress(1, mission.target_count());
+                    user_mission
+                })
+                .collect();
+
+            let save_futures = user_missions_to_save
+                .iter()
+                .map(|um| self.mission_repo.save_user_mission(um));
+            join_all(save_futures).await;
+        }
 
         let user_achievements = self
             .achievement_repo
             .get_user_achievements(payload.user_id)
             .await?;
 
-        for mut user_ach in user_achievements {
+        let relevant_achievement_ids: Vec<_> = user_achievements
+            .iter()
+            .map(|ua| ua.achievement_id())
+            .collect();
+
+        let achievements = self
+            .achievement_repo
+            .get_achievements_by_ids(&relevant_achievement_ids)
+            .await?;
+
+        let achievement_map: HashMap<_, _> = achievements
+            .into_iter()
+            .map(|ach| (ach.id(), ach))
+            .collect();
+
+        let mut futures = Vec::new();
+
+        for user_ach in &user_achievements {
             if user_ach.is_completed() {
                 continue;
             }
 
             if let Some(achievement_master) = achievement_map.get(&user_ach.achievement_id()) {
+                let mut user_ach = user_ach.clone();
+                let reward_points = achievement_master.reward_points();
+
                 user_ach.add_progress(1, achievement_master.milestone_target(), now);
 
-                // reward otomatis dapat habis selesaikan achievement
-                if user_ach.is_completed() {
-                    self.achievement_repo
-                        .add_user_score(payload.user_id, achievement_master.reward_points())
-                        .await?;
-                }
+                let just_completed = user_ach.is_completed();
+                let user_id = payload.user_id;
+                let repo = Arc::clone(&self.achievement_repo);
 
-                self.achievement_repo
-                    .save_user_achievement(&user_ach)
-                    .await?;
+                if just_completed {
+                    futures.push(
+                        async move {
+                            repo.add_user_score(user_id, reward_points).await?;
+                            repo.save_user_achievement(&user_ach).await
+                        }
+                        .boxed(),
+                    );
+                } else {
+                    futures
+                        .push(async move { repo.save_user_achievement(&user_ach).await }.boxed());
+                }
             }
+        }
+
+        let results = join_all(futures).await;
+        for result in results {
+            result?;
         }
 
         Ok(())
@@ -145,8 +192,8 @@ mod tests {
             .return_once(move |_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(None));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![]));
 
         mission_repo
             .expect_save_user_mission()
@@ -158,8 +205,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -185,8 +232,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(Some(existing_user_mission)));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![existing_user_mission]));
 
         mission_repo
             .expect_save_user_mission()
@@ -198,8 +245,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -226,8 +273,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(Some(existing_user_mission)));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![existing_user_mission]));
 
         mission_repo
             .expect_save_user_mission()
@@ -239,8 +286,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -266,8 +313,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -296,8 +343,8 @@ mod tests {
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .return_once(move || Ok(vec![achievement.clone()]));
+            .expect_get_achievements_by_ids()
+            .return_once(move |_| Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_save_user_achievement()
@@ -331,8 +378,8 @@ mod tests {
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .return_once(move || Ok(vec![achievement.clone()]));
+            .expect_get_achievements_by_ids()
+            .return_once(move |_| Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_add_user_score()
@@ -370,8 +417,8 @@ mod tests {
             .return_once(|_| Ok(vec![user_achievement]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .return_once(move || Ok(vec![achievement.clone()]));
+            .expect_get_achievements_by_ids()
+            .return_once(move |_| Ok(vec![achievement.clone()]));
 
         achievement_repo
             .expect_add_user_score()
@@ -403,8 +450,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(None));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![]));
 
         mission_repo
             .expect_save_user_mission()
@@ -416,8 +463,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -447,8 +494,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -473,8 +520,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(None));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![]));
 
         mission_repo
             .expect_save_user_mission()
@@ -486,8 +533,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -514,8 +561,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission]));
 
         mission_repo
-            .expect_get_user_mission()
-            .return_once(|_, _| Ok(Some(existing_user_mission)));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![existing_user_mission]));
 
         mission_repo
             .expect_save_user_mission()
@@ -527,8 +574,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -555,9 +602,8 @@ mod tests {
             .return_once(|_| Ok(vec![mission1, mission2]));
 
         mission_repo
-            .expect_get_user_mission()
-            .times(2)
-            .returning(|_, _| Ok(None));
+            .expect_get_user_missions_batch()
+            .return_once(|_, _| Ok(vec![]));
 
         mission_repo
             .expect_save_user_mission()
@@ -570,8 +616,8 @@ mod tests {
             .return_once(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .return_once(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
@@ -596,9 +642,9 @@ mod tests {
             .returning(move |_| Ok(vec![mission.clone()]));
 
         mission_repo
-            .expect_get_user_mission()
+            .expect_get_user_missions_batch()
             .times(2)
-            .returning(|_, _| Ok(None));
+            .returning(|_, _| Ok(vec![]));
 
         mission_repo
             .expect_save_user_mission()
@@ -612,8 +658,9 @@ mod tests {
             .returning(|_| Ok(vec![]));
 
         achievement_repo
-            .expect_get_all_achievements()
-            .returning(|| Ok(vec![]));
+            .expect_get_achievements_by_ids()
+            .times(2)
+            .returning(|_| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));

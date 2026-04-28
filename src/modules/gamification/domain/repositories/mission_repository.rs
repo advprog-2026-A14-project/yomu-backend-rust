@@ -17,6 +17,11 @@ pub trait MissionRepository: Send + Sync {
         user_id: Uuid,
         mission_id: Uuid,
     ) -> Result<Option<UserMission>, String>;
+    async fn get_user_missions_batch(
+        &self,
+        user_id: Uuid,
+        mission_ids: Vec<Uuid>,
+    ) -> Result<Vec<UserMission>, String>;
     async fn save_user_mission(&self, user_mission: &UserMission) -> Result<(), String>;
     async fn get_daily_mission_by_id(&self, id: Uuid) -> Result<Option<DailyMission>, String>;
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String>;
