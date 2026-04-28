@@ -33,6 +33,7 @@ mock! {
         async fn is_user_in_any_clan(&self, user_id: Uuid) -> Result<bool, AppError>;
         async fn get_user_clan_id(&self, user_id: Uuid) -> Result<Option<Uuid>, AppError>;
         async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
+        async fn get_user_tier_info(&self, user_id: Uuid) -> Result<Option<(Uuid, String, ClanTier)>, AppError>;
     }
 }
 
@@ -556,24 +557,13 @@ async fn get_user_tier_has_clan() {
     let clan_id = Uuid::new_v4();
     let leader_id = Uuid::new_v4();
 
-    let clan = Clan::with_id(
-        clan_id,
-        "Tier Clan".to_string(),
-        leader_id,
-        ClanTier::Gold,
-        750,
-        chrono::Utc::now(),
-    );
+    let tier_info = (clan_id, "Tier Clan".to_string(), ClanTier::Gold);
 
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
-        .expect_get_user_clan_id()
-        .return_once(move |_| Ok(Some(clan_id)));
-
-    mock_repo
-        .expect_get_clan_by_id()
-        .return_once(|_| Ok(Some(clan)));
+        .expect_get_user_tier_info()
+        .return_once(move |_| Ok(Some(tier_info)));
 
     let use_case = GetUserTierUseCase::new(mock_repo);
 
@@ -594,7 +584,7 @@ async fn get_user_tier_no_clan() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
-        .expect_get_user_clan_id()
+        .expect_get_user_tier_info()
         .return_once(|_| Ok(None));
 
     let use_case = GetUserTierUseCase::new(mock_repo);
@@ -616,10 +606,8 @@ async fn get_user_tier_empty_optionals() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
-        .expect_get_user_clan_id()
-        .return_once(|_| Ok(Some(Uuid::new_v4())));
-
-    mock_repo.expect_get_clan_by_id().return_once(|_| Ok(None));
+        .expect_get_user_tier_info()
+        .return_once(|_| Ok(None));
 
     let use_case = GetUserTierUseCase::new(mock_repo);
 
@@ -672,7 +660,7 @@ async fn empty_database_get_user_tier() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
-        .expect_get_user_clan_id()
+        .expect_get_user_tier_info()
         .return_once(|_| Ok(None));
 
     let use_case = GetUserTierUseCase::new(mock_repo);
