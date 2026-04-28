@@ -3,10 +3,6 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::time::Duration;
 use tracing::info;
 
-/// Creates a PostgreSQL connection pool with sensible defaults.
-///
-/// Pool config: max 20 connections, min 5, 5s acquire timeout.
-/// Tests connection before returning pool.
 pub async fn init_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     info!("Trying to connect to PostgreSQL...");
 
@@ -14,7 +10,7 @@ pub async fn init_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Erro
         .max_connections(20)
         .min_connections(5)
         .acquire_timeout(Duration::from_secs(5))
-        .test_before_acquire(true)
+        .test_before_acquire(false)
         .connect(database_url)
         .await?;
 
@@ -23,9 +19,6 @@ pub async fn init_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Erro
     Ok(pool)
 }
 
-/// Creates a Redis multiplexed async connection.
-///
-/// Multiplexed connection allows concurrent commands on single connection.
 pub async fn init_redis_pool(redis_url: &str) -> Result<MultiplexedConnection, redis::RedisError> {
     info!("Trying to connect to Redis...");
 
