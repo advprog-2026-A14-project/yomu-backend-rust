@@ -48,11 +48,14 @@ impl QuizHistoryRepository for QuizHistoryPostgresRepo {
     async fn get_quiz_histories_by_user(
         &self,
         user_id: Uuid,
+        limit: Option<i64>,
     ) -> Result<Vec<QuizHistory>, AppError> {
+        let limit = limit.unwrap_or(100);
         let rows = sqlx::query_as::<_, QuizHistoryRow>(
-            "SELECT id, user_id, article_id, score, CAST(accuracy AS FLOAT8) as accuracy, completed_at FROM quiz_history WHERE user_id = $1 ORDER BY completed_at DESC"
+            "SELECT id, user_id, article_id, score, CAST(accuracy AS FLOAT8) as accuracy, completed_at FROM quiz_history WHERE user_id = $1 ORDER BY completed_at DESC LIMIT $2"
         )
         .bind(user_id)
+        .bind(limit)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::InternalServer(e.to_string()))?;
