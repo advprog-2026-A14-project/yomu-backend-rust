@@ -1,4 +1,5 @@
 mod config;
+mod generated;
 mod modules;
 mod shared;
 
@@ -150,8 +151,8 @@ async fn async_main(app_config: config::AppConfig) {
     let (prometheus_layer, metrics_handle) = PrometheusMetricLayer::pair();
 
     let state = AppState {
-        db: db_pool,
-        redis: redis_pool,
+        db: db_pool.clone(),
+        redis: redis_pool.clone(),
         jwt_secret: app_config.jwt_secret.clone(),
         java_core_api_key: app_config.java_core_api_key.clone(),
     };
@@ -199,26 +200,83 @@ async fn async_main(app_config: config::AppConfig) {
         .layer(Extension(metrics_handle))
         .layer(OtelAxumLayer::default());
 
-    #[allow(clippy::expect_used)]
-    let addr: SocketAddr = format!("{}:{}", app_config.host, app_config.port)
-        .parse()
-        .expect("Invalid host/port configuration");
+    let port = app_config.port;
+    let grpc_port = app_config.grpc_port;
 
-    tracing::info!("Listening on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::error!("Failed to bind TCP listener on {}: {}", addr, e);
-            std::process::exit(1);
-        });
+    let http_host = app_config.host.clone();
+    let grpc_host = app_config.host.clone();
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap_or_else(|e| {
-            tracing::error!("Axum server error: {}", e);
+    let user_sync_svc =
+        modules::user_sync::presentation::grpc::user_sync_handler::UserSyncGrpcHandler::new(
+            db_pool.clone(),
+        );
+    let quiz_sync_svc =
+        modules::user_sync::presentation::grpc::quiz_sync_handler::QuizSyncGrpcHandler::new(
+            db_pool.clone(),
+        );
+    let league_svc = modules::league::presentation::grpc::league_handler::LeagueGrpcHandler::new(
+        redis_pool.clone(),
+    );
+
+    let grpc_router = tonic::transport::Server::builder()
+        .add_service(
+            crate::generated::usersync::user_sync_service_server::UserSyncServiceServer::new(
+                user_sync_svc,
+            ),
+        )
+        .add_service(
+            crate::generated::quizsync::quiz_sync_service_server::QuizSyncServiceServer::new(
+                quiz_sync_svc,
+            ),
+        )
+        .add_service(
+            crate::generated::league::league_service_server::LeagueServiceServer::new(league_svc),
+        );
+
+    let http_server = tokio::spawn(async move {
+        #[allow(clippy::expect_used)]
+        let addr: SocketAddr = format!("{}:{}", http_host, port)
+            .parse()
+            .expect("Invalid host/port configuration");
+
+        tracing::info!("Listening on {}", addr);
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to bind TCP listener on {}: {}", addr, e);
+                std::process::exit(1);
+            });
+
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!("Axum server error: {}", e);
+                std::process::exit(1);
+            });
+    });
+
+    let grpc_server = tokio::spawn(async move {
+        #[allow(clippy::expect_used)]
+        let grpc_addr: SocketAddr = format!("{}:{}", grpc_host, grpc_port)
+            .parse()
+            .expect("Invalid grpc host/port configuration");
+
+        tracing::info!("Starting gRPC server on {}", grpc_addr);
+
+        if let Err(e) = grpc_router.serve(grpc_addr).await {
+            tracing::error!("gRPC server error: {}", e);
             std::process::exit(1);
-        });
+        }
+    });
+
+    let (http_result, grpc_result) = tokio::join!(http_server, grpc_server);
+    if let Err(e) = http_result {
+        tracing::error!("HTTP server task panicked: {}", e);
+    }
+    if let Err(e) = grpc_result {
+        tracing::error!("gRPC server task panicked: {}", e);
+    }
 }
 
 #[allow(clippy::expect_used)]

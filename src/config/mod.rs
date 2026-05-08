@@ -6,6 +6,7 @@ use std::env;
 pub struct AppConfig {
     pub host: String,
     pub port: u16,
+    pub grpc_port: u16,
     pub database_url: String,
     pub redis_url: String,
     pub java_core_url: String,
@@ -28,6 +29,7 @@ impl AppConfig {
             port: get_env("APP_PORT", "8080")
                 .parse()
                 .unwrap_or_else(|_| panic!("APP_PORT must be a number")),
+            grpc_port: get_env_parse("GRPC_PORT", "9090"),
             database_url: get_env_strict("DATABASE_URL"),
             redis_url: get_env_strict("REDIS_URL"),
             java_core_url: get_env_strict("JAVA_CORE_URL"),
