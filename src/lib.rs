@@ -9,17 +9,16 @@ pub use config::database::{init_postgres_pool, init_redis_pool};
 use redis::aio::MultiplexedConnection;
 use serde::{Deserialize, Serialize};
 pub use shared::domain::base_error::AppError;
-pub use shared::infrastructure::metrics::AppMetrics;
 pub use shared::utils::response::ApiResponse;
 use sqlx::PgPool;
-use std::sync::Arc;
 use utoipa::OpenApi;
 
 #[derive(Clone, Debug)]
 pub struct AppState {
     pub db: PgPool,
     pub redis: MultiplexedConnection,
-    pub metrics: Arc<AppMetrics>,
+    pub jwt_secret: String,
+    pub java_core_api_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

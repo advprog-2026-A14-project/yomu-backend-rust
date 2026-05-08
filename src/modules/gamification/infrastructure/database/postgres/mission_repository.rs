@@ -1,11 +1,11 @@
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::NaiveDate;
 
-use crate::modules::gamification::domain::ports::mission_repository::MissionRepository;
-use crate::modules::gamification::domain::entities::mission::{DailyMission, UserMission};
 use crate::modules::gamification::domain::entities::daily_mission::MissionType;
+use crate::modules::gamification::domain::entities::mission::{DailyMission, UserMission};
+use crate::modules::gamification::domain::ports::mission_repository::MissionRepository;
 
 pub struct PostgresMissionRepository {
     pub pool: PgPool,
@@ -19,11 +19,15 @@ impl PostgresMissionRepository {
 
 #[async_trait]
 impl MissionRepository for PostgresMissionRepository {
-    async fn get_user_mission(&self, user_id: Uuid, mission_id: Uuid) -> Result<Option<UserMission>, String> {
+    async fn get_user_mission(
+        &self,
+        user_id: Uuid,
+        mission_id: Uuid,
+    ) -> Result<Option<UserMission>, String> {
         let record = sqlx::query!(
             r#"
-            SELECT user_id, mission_id, current_progress, is_claimed 
-            FROM user_missions 
+            SELECT user_id, mission_id, current_progress, is_claimed
+            FROM user_missions
             WHERE user_id = $1 AND mission_id = $2
             "#,
             user_id,
@@ -40,9 +44,42 @@ impl MissionRepository for PostgresMissionRepository {
                 mission.current_progress = row.current_progress;
                 mission.is_claimed = row.is_claimed;
                 Ok(Some(mission))
-            },
-            None => Ok(None)
+            }
+            None => Ok(None),
         }
+    }
+
+    async fn get_user_missions_batch(
+        &self,
+        user_id: Uuid,
+        mission_ids: Vec<Uuid>,
+    ) -> Result<Vec<UserMission>, String> {
+        if mission_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let records = sqlx::query!(
+            r#"
+            SELECT user_id, mission_id, current_progress, is_claimed
+            FROM user_missions
+            WHERE user_id = $1 AND mission_id = ANY($2)
+            "#,
+            user_id,
+            &mission_ids
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Database error: {}", e))?;
+
+        let mut user_missions = Vec::new();
+        for row in records {
+            let mut mission = UserMission::new(row.user_id, row.mission_id);
+            mission.current_progress = row.current_progress;
+            mission.is_claimed = row.is_claimed;
+            user_missions.push(mission);
+        }
+
+        Ok(user_missions)
     }
 
     async fn save_user_mission(&self, user_mission: &UserMission) -> Result<(), String> {
@@ -84,7 +121,10 @@ impl MissionRepository for PostgresMissionRepository {
         Ok(())
     }
 
-    async fn get_active_missions_by_date(&self, date: NaiveDate) -> Result<Vec<DailyMission>, String> {
+    async fn get_active_missions_by_date(
+        &self,
+        date: NaiveDate,
+    ) -> Result<Vec<DailyMission>, String> {
         let records = sqlx::query!(
             r#"
             SELECT id, description, target_count, date, reward_points, mission_type
@@ -107,12 +147,12 @@ impl MissionRepository for PostgresMissionRepository {
             };
 
             if let Ok(mission) = DailyMission::new(
-                row.id, 
-                row.description, 
-                row.target_count, 
-                row.date, 
+                row.id,
+                row.description,
+                row.target_count,
+                row.date,
                 row.reward_points,
-                m_type
+                m_type,
             ) {
                 missions.push(mission);
             }
@@ -122,7 +162,7 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn get_daily_mission_by_id(&self, id: Uuid) -> Result<Option<DailyMission>, String> {
-       let record = sqlx::query!(
+        let record = sqlx::query!(
             r#"
             SELECT id, description, target_count, date, reward_points, mission_type 
             FROM daily_missions 
@@ -143,16 +183,17 @@ impl MissionRepository for PostgresMissionRepository {
                 };
 
                 let mission = DailyMission::new(
-                    row.id, 
-                    row.description, 
-                    row.target_count, 
-                    row.date, 
+                    row.id,
+                    row.description,
+                    row.target_count,
+                    row.date,
                     row.reward_points,
-                    m_type
-                ).map_err(|e| e.to_string())?;
+                    m_type,
+                )
+                .map_err(|e| e.to_string())?;
                 Ok(Some(mission))
-            },
-            None => Ok(None)
+            }
+            None => Ok(None),
         }
     }
 }

@@ -10,6 +10,12 @@ pub struct AppConfig {
     pub redis_url: String,
     pub java_core_url: String,
     pub java_core_api_key: String,
+    pub jwt_secret: String,
+    pub pg_pool_max_connections: u32,
+    pub pg_pool_min_connections: u32,
+    pub pg_pool_acquire_timeout_secs: u64,
+    pub pg_pool_max_lifetime_secs: u64,
+    pub pg_pool_idle_timeout_secs: u64,
 }
 
 impl AppConfig {
@@ -26,6 +32,12 @@ impl AppConfig {
             redis_url: get_env_strict("REDIS_URL"),
             java_core_url: get_env_strict("JAVA_CORE_URL"),
             java_core_api_key: get_env_strict("JAVA_CORE_API_KEY"),
+            jwt_secret: get_env_strict("JWT_SECRET"),
+            pg_pool_max_connections: get_env_parse("PG_POOL_MAX_CONNECTIONS", "20"),
+            pg_pool_min_connections: get_env_parse("PG_POOL_MIN_CONNECTIONS", "5"),
+            pg_pool_acquire_timeout_secs: get_env_parse("PG_POOL_ACQUIRE_TIMEOUT_SECS", "5"),
+            pg_pool_max_lifetime_secs: get_env_parse("PG_POOL_MAX_LIFETIME_SECS", "1800"),
+            pg_pool_idle_timeout_secs: get_env_parse("PG_POOL_IDLE_TIMEOUT_SECS", "300"),
         }
     }
 }
@@ -37,4 +49,12 @@ fn get_env(key: &str, default: &str) -> String {
 #[allow(clippy::panic)]
 fn get_env_strict(key: &str) -> String {
     env::var(key).unwrap_or_else(|_| panic!("Missing required environment variable: {}", key))
+}
+
+#[allow(clippy::panic)]
+fn get_env_parse<T: std::str::FromStr>(key: &str, default: &str) -> T {
+    env::var(key)
+        .unwrap_or_else(|_| default.to_string())
+        .parse()
+        .unwrap_or_else(|_| panic!("Environment variable {} must be a valid number", key))
 }

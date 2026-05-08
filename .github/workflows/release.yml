@@ -26,10 +26,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: 'linux/amd64,linux/arm64'
+      - name: Lowercase IMAGE_NAME
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -62,7 +60,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64 
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.created }}
             VERSION=${{ steps.meta.outputs.version }}
@@ -73,15 +71,51 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push'
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: yomu
+          POSTGRES_PASSWORD: yomu_password
+          POSTGRES_DB: yomu_engine_test
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Lowercase IMAGE_NAME
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Pull image
-        run: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: docker pull ${{ env.REGISTRY }}/$IMAGE_NAME:latest
 
       - name: Health check
         run: |
-          docker run -d --name test-app -p 8080:8080 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          sleep 5
-          curl -f http://localhost:8080/health || exit 1
+          docker run -d --name test-app \
+            --network host \
+            -e DATABASE_URL=postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e RUST_LOG=info \
+            -e JAVA_CORE_URL=http://localhost:8081 \
+            -e JAVA_CORE_API_KEY=test-api-key \
+            ${{ env.REGISTRY }}/$IMAGE_NAME:latest
+          
+          sleep 15
+          curl -v -f http://localhost:8080/health || (docker logs test-app && exit 1)
 
       - name: Cleanup
+        if: always()
         run: docker rm -f test-app

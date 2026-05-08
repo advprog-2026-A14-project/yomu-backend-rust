@@ -47,6 +47,7 @@ impl From<AppError> for LeagueError {
             AppError::InternalServer(msg) => LeagueError::ClanNotFound(msg),
             AppError::BadRequest(msg) => LeagueError::UserNotInAnyClan(msg),
             AppError::NotFound(msg) => LeagueError::ClanNotFound(msg),
+            AppError::Unauthorized(msg) => LeagueError::UserNotInAnyClan(msg),
         }
     }
 }
