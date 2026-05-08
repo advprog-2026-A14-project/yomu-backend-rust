@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package league;
+
+option java_multiple_files = true;
+option java_package = "id.ac.ui.cs.advprog.yomubackendjava.proto.league";
+option java_outer_classname = "LeagueProto";
+
+// ---------------------------------------------------------------------------
+// League Service
+// ---------------------------------------------------------------------------
+service LeagueService {
+  rpc GetUserTier(GetUserTierRequest) returns (GetUserTierResponse);
+  rpc GetLeaderboard(GetLeaderboardRequest) returns (GetLeaderboardResponse);
+  rpc JoinClan(JoinClanRequest) returns (JoinClanResponse);
+}
+
+message GetUserTierRequest {
+  string user_id = 1;
+}
+
+message GetUserTierResponse {
+  string user_id = 1;
+  string clan_id = 2;
+  string clan_name = 3;
+  string tier = 4;
+}
+
+message LeaderboardEntry {
+  string clan_id = 1;
+  string clan_name = 2;
+  int64 total_score = 3;
+  string tier = 4;
+}
+
+message GetLeaderboardRequest {
+  string tier = 1;  // Bronze, Silver, Gold, Diamond
+  int32 limit = 2;  // default 10
+}
+
+message GetLeaderboardResponse {
+  repeated LeaderboardEntry entries = 1;
+}
+
+message JoinClanRequest {
+  string user_id = 1;
+  string clan_id = 2;
+}
+
+message JoinClanResponse {
+  string user_id = 1;
+  string clan_id = 2;
+  string message = 3;
+}

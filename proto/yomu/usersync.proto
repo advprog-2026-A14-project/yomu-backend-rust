@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package usersync;
+
+option java_multiple_files = true;
+option java_package = "id.ac.ui.cs.advprog.yomubackendjava.proto.usersync";
+option java_outer_classname = "UserSyncProto";
+
+// ---------------------------------------------------------------------------
+// User Sync Service
+// ---------------------------------------------------------------------------
+service UserSyncService {
+  rpc SyncShadowUser(SyncShadowUserRequest) returns (SyncShadowUserResponse);
+}
+
+message SyncShadowUserRequest {
+  string user_id = 1;  // UUID as string
+}
+
+message SyncShadowUserResponse {
+  string user_id = 1;
+  string message = 2;
+}

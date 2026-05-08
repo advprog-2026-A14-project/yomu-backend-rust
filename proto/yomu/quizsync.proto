@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package quizsync;
+
+option java_multiple_files = true;
+option java_package = "id.ac.ui.cs.advprog.yomubackendjava.proto.quizsync";
+option java_outer_classname = "QuizSyncProto";
+
+// ---------------------------------------------------------------------------
+// Quiz Sync Service
+// ---------------------------------------------------------------------------
+service QuizSyncService {
+  rpc SyncQuizHistory(SyncQuizHistoryRequest) returns (SyncQuizHistoryResponse);
+}
+
+message SyncQuizHistoryRequest {
+  string user_id = 1;
+  string article_id = 2;
+  double score = 3;
+  double accuracy = 4;
+}
+
+message SyncQuizHistoryResponse {
+  string user_id = 1;
+  int32 missions_updated = 2;
+  string message = 3;
+}
