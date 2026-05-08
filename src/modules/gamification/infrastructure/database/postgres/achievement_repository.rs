@@ -1,10 +1,12 @@
 use async_trait::async_trait;
 use sqlx::PgPool;
-use uuid::Uuid;
 use std::str::FromStr;
+use uuid::Uuid;
 
+use crate::modules::gamification::domain::entities::achievement::{
+    Achievement, AchievementType, UserAchievement,
+};
 use crate::modules::gamification::domain::ports::achievement_repository::AchievementRepository;
-use crate::modules::gamification::domain::entities::achievement::{Achievement, AchievementType, UserAchievement};
 
 pub struct PostgresAchievementRepository {
     pub pool: PgPool,
@@ -18,7 +20,6 @@ impl PostgresAchievementRepository {
 
 #[async_trait]
 impl AchievementRepository for PostgresAchievementRepository {
-    
     async fn get_achievement_by_id(&self, id: Uuid) -> Result<Option<Achievement>, String> {
         let record = sqlx::query!(
             r#"
@@ -43,16 +44,17 @@ impl AchievementRepository for PostgresAchievementRepository {
                 };
 
                 let achievement = Achievement::new(
-                    row.id, 
-                    row.name, 
-                    row.milestone_target, 
-                    ach_type, 
-                    row.reward_points
-                ).map_err(|e| e.to_string())?;
+                    row.id,
+                    row.name,
+                    row.milestone_target,
+                    ach_type,
+                    row.reward_points,
+                )
+                .map_err(|e| e.to_string())?;
 
                 Ok(Some(achievement))
-            },
-            None => Ok(None)
+            }
+            None => Ok(None),
         }
     }
 
@@ -70,9 +72,9 @@ impl AchievementRepository for PostgresAchievementRepository {
         .map_err(|e| format!("Database error (get_user_achievements): {}", e))?;
 
         let mut achievements = Vec::new();
-        
+
         for row in records {
-            // Karena field di struct UserAchievement bersifat 'pub', 
+            // Karena field di struct UserAchievement bersifat 'pub',
             // kita bisa langsung merekonstruksi state masa lalunya dari database.
             let mut user_ach = UserAchievement::new(row.user_id, row.achievement_id);
             user_ach.current_progress = row.current_progress;
@@ -86,7 +88,10 @@ impl AchievementRepository for PostgresAchievementRepository {
         Ok(achievements)
     }
 
-    async fn save_user_achievement(&self, user_achievement: &UserAchievement) -> Result<(), String> {
+    async fn save_user_achievement(
+        &self,
+        user_achievement: &UserAchievement,
+    ) -> Result<(), String> {
         // UPSERT: Insert jika baru pertama kali dapat progres, Update jika sudah ada
         sqlx::query!(
             r#"
@@ -115,7 +120,7 @@ impl AchievementRepository for PostgresAchievementRepository {
     }
 
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String> {
-        // Query ini persis sama dengan yang ada di mission_repository, 
+        // Query ini persis sama dengan yang ada di mission_repository,
         // tapi ditaruh di sini agar AchievementUseCase tetap independen.
         sqlx::query!(
             r#"
@@ -154,11 +159,51 @@ impl AchievementRepository for PostgresAchievementRepository {
             };
 
             if let Ok(achievement) = Achievement::new(
-                row.id, 
-                row.name, 
-                row.milestone_target, 
-                ach_type, 
-                row.reward_points
+                row.id,
+                row.name,
+                row.milestone_target,
+                ach_type,
+                row.reward_points,
+            ) {
+                achievements.push(achievement);
+            }
+        }
+
+        Ok(achievements)
+    }
+
+    async fn get_achievements_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Achievement>, String> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let records = sqlx::query!(
+            r#"
+            SELECT id, name, milestone_target, achievement_type, reward_points 
+            FROM achievements 
+            WHERE id = ANY($1)
+            "#,
+            ids
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_achievements_by_ids): {}", e))?;
+
+        let mut achievements = Vec::new();
+        for row in records {
+            let ach_type = match row.achievement_type.as_str() {
+                "Rare" => AchievementType::Rare,
+                "Epic" => AchievementType::Epic,
+                "Legendary" => AchievementType::Legendary,
+                _ => AchievementType::Common,
+            };
+
+            if let Ok(achievement) = Achievement::new(
+                row.id,
+                row.name,
+                row.milestone_target,
+                ach_type,
+                row.reward_points,
             ) {
                 achievements.push(achievement);
             }

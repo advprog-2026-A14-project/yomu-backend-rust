@@ -8,6 +8,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AppError {
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
     #[error("Internal server error: {0}")]
     InternalServer(String),
 
@@ -32,6 +35,7 @@ impl IntoResponse for AppError {
             AppError::InternalServer(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
         };
 
         let body = ApiResponse::<()>::error(&error_message);
@@ -45,6 +49,13 @@ impl IntoResponse for AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn app_error_unauthorized_maps_to_401() {
+        let error = AppError::Unauthorized("invalid token".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
 
     #[test]
     fn app_error_internal_server_maps_to_500() {

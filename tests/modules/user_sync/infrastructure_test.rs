@@ -313,7 +313,7 @@ mod pg_tests {
             .expect("Second insert should succeed");
 
         let histories = repo
-            .get_quiz_histories_by_user(user_id)
+            .get_quiz_histories_by_user(user_id, None)
             .await
             .expect("Query should succeed");
         assert_eq!(histories.len(), 2, "Should return 2 quiz histories");
@@ -330,7 +330,7 @@ mod pg_tests {
         let repo = QuizHistoryPostgresRepo::new(pool.clone());
 
         let histories = repo
-            .get_quiz_histories_by_user(non_existent_id)
+            .get_quiz_histories_by_user(non_existent_id, None)
             .await
             .expect("Query should succeed");
         assert!(

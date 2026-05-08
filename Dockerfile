@@ -7,6 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN cargo install cargo-chef
@@ -21,13 +22,16 @@ FROM chef AS builder
 
 COPY --from=planner /app/recipe.json recipe.json
 
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+  cargo chef cook --release --recipe-path recipe.json
 
 COPY . .
 
 ENV SQLX_OFFLINE=true
 
-RUN cargo build --release --bin yomu-backend-rust
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+  --mount=type=cache,target=/app/target \
+  cargo build --release --bin yomu-backend-rust
 
 FROM debian:bookworm-slim AS runtime
 
@@ -36,15 +40,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     libssl3 \
     ca-certificates \
+    curl \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -ms /bin/bash yomuuser \
+    && useradd --system --no-create-home --shell /bin/false yomuuser \
     && chown -R yomuuser:yomuuser /app
 
 USER yomuuser
 
 COPY --from=builder /app/target/release/yomu-backend-rust /app/yomu-backend-rust
-
-COPY --from=builder /app/.env.example /app/.env.example
 
 EXPOSE 8080
 
