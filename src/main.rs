@@ -3,17 +3,20 @@ mod modules;
 mod shared;
 
 use crate::shared::domain::base_error::AppError;
+use crate::shared::infrastructure::auth::api_key_middleware::api_key_auth_layer;
+use crate::shared::infrastructure::auth::jwt_middleware::jwt_auth_layer;
 use crate::shared::infrastructure::logging::init_logging;
-use crate::shared::infrastructure::metrics::routes::metrics_routes;
-use crate::shared::infrastructure::telemetry::{init_telemetry, init_telemetry_subscriber};
+use crate::shared::infrastructure::telemetry::init_telemetry;
 use crate::shared::utils::response::ApiResponse;
-use axum::{Extension, Router, extract::State, response::Json, routing::get};
-use axum_prometheus::PrometheusMetricLayer;
+use axum::{Extension, Router, extract::State, middleware, response::Json, routing::get};
+use axum_prometheus::{PrometheusMetricLayer, metrics_exporter_prometheus::PrometheusHandle};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
+use sentry_tower::NewSentryLayer;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     timeout::TimeoutLayer,
     trace::TraceLayer,
@@ -21,7 +24,7 @@ use tower_http::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use yomu_backend_rust::{ApiDoc, AppMetrics, AppState, HealthResponse};
+use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
 
 #[utoipa::path(
     get,
@@ -79,7 +82,30 @@ async fn simulate_error() -> Result<Json<ApiResponse<()>>, AppError> {
     ))
 }
 
+async fn metrics_handler(
+    Extension(handle): Extension<PrometheusHandle>,
+) -> impl axum::response::IntoResponse {
+    let buffer = handle.render();
+    (
+        [("content-type", "text/plain; version=0.0.4; charset=utf-8")],
+        buffer,
+    )
+}
+
 fn main() {
+    let _sentry = sentry::init(sentry::ClientOptions {
+        dsn: std::env::var("SENTRY_DSN")
+            .ok()
+            .and_then(|dsn| dsn.parse().ok()),
+        environment: Some(
+            std::env::var("SENTRY_ENVIRONMENT")
+                .unwrap_or_else(|_| "development".into())
+                .into(),
+        ),
+        release: Some(env!("CARGO_PKG_VERSION").into()),
+        ..Default::default()
+    });
+
     let _log_guard = init_logging(None);
 
     tracing::info!("Starting Yomu Engine Rust...");
@@ -94,12 +120,11 @@ fn main() {
 
 async fn async_main_internal() {
     let _tracer_provider = init_telemetry().expect("Failed to initialize telemetry");
-    init_telemetry_subscriber();
     async_main(config::AppConfig::load()).await;
 }
 
 async fn async_main(app_config: config::AppConfig) {
-    let db_pool = match config::database::init_postgres_pool(&app_config.database_url).await {
+    let db_pool = match config::database::init_postgres_pool(&app_config).await {
         Ok(pool) => pool,
         Err(e) => {
             tracing::error!("Failed connecting to database: {}", e);
@@ -122,22 +147,23 @@ async fn async_main(app_config: config::AppConfig) {
         }
     };
 
-    let metrics = Arc::new(AppMetrics::new());
-    let (prometheus_layer, _) = PrometheusMetricLayer::pair();
+    let (prometheus_layer, metrics_handle) = PrometheusMetricLayer::pair();
 
     let state = AppState {
         db: db_pool,
         redis: redis_pool,
-        metrics: metrics.clone(),
+        jwt_secret: app_config.jwt_secret.clone(),
+        java_core_api_key: app_config.java_core_api_key.clone(),
     };
 
+    let state_for_middleware = state.clone();
+
     let middleware_stack = ServiceBuilder::new()
+        .layer(CompressionLayer::new())
         .layer(prometheus_layer)
+        .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::with_status_code(
-            axum::http::StatusCode::REQUEST_TIMEOUT,
-            Duration::from_secs(10),
-        ))
+        .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -145,22 +171,32 @@ async fn async_main(app_config: config::AppConfig) {
                 .allow_headers(Any),
         );
 
-    let api_v1_router = Router::new().merge(modules::league::presentation::routes::league_routes());
-    let internal_api_router =
-        Router::new().merge(modules::user_sync::presentation::routes::user_sync_routes());
+    let api_v1_router = Router::new()
+        .merge(modules::league::presentation::routes::league_routes())
+        .route_layer(middleware::from_fn_with_state(
+            state_for_middleware.clone(),
+            jwt_auth_layer,
+        ));
+
+    let internal_api_router = Router::new()
+        .merge(modules::user_sync::presentation::routes::user_sync_routes())
+        .route_layer(middleware::from_fn_with_state(
+            state_for_middleware.clone(),
+            api_key_auth_layer,
+        ));
 
     let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
 
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/error", get(simulate_error))
+        .route("/metrics", get(metrics_handler))
         .merge(swagger)
-        .merge(metrics_routes())
         .nest("/api/v1", api_v1_router)
         .nest("/api/internal", internal_api_router)
         .with_state(state)
         .layer(middleware_stack)
-        .layer(Extension(metrics))
+        .layer(Extension(metrics_handle))
         .layer(OtelAxumLayer::default());
 
     #[allow(clippy::expect_used)]

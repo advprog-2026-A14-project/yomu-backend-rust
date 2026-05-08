@@ -13,20 +13,14 @@ impl<R: ClanRepository> GetUserTierUseCase<R> {
     }
 
     pub async fn execute(&self, user_id: Uuid) -> Result<UserTierDto, AppError> {
-        let clan_id = self.repository.get_user_clan_id(user_id).await?;
+        let tier_info = self.repository.get_user_tier_info(user_id).await?;
 
-        let Some(clan_id) = clan_id else {
-            return Ok(UserTierDto::not_in_clan(user_id));
-        };
-
-        let clan = self.repository.get_clan_by_id(clan_id).await?;
-
-        match clan {
-            Some(c) => Ok(UserTierDto::from_clan(
+        match tier_info {
+            Some((clan_id, clan_name, tier)) => Ok(UserTierDto::from_clan(
                 user_id,
-                c.id(),
-                c.name().to_string(),
-                c.tier().to_string(),
+                clan_id,
+                clan_name,
+                tier.to_string(),
             )),
             None => Ok(UserTierDto::not_in_clan(user_id)),
         }

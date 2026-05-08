@@ -35,7 +35,7 @@ mock! {
     #[async_trait]
     impl QuizHistoryRepository for QuizRepo {
         async fn insert_quiz_history(&self, quiz: &QuizHistory) -> Result<(), AppError>;
-        async fn get_quiz_histories_by_user(&self, user_id: Uuid) -> Result<Vec<QuizHistory>, AppError>;
+        async fn get_quiz_histories_by_user(&self, user_id: Uuid, limit: Option<i64>) -> Result<Vec<QuizHistory>, AppError>;
     }
 }
 

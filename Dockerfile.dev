@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     gcc \
     musl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install cargo-watch for hot reload

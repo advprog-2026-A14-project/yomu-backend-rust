@@ -57,7 +57,8 @@ async fn setup_app_state() -> yomu_backend_rust::AppState {
     yomu_backend_rust::AppState {
         db: pool,
         redis,
-        metrics: std::sync::Arc::new(yomu_backend_rust::AppMetrics::default()),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
     }
 }
 

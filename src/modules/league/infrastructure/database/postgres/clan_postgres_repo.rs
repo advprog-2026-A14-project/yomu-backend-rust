@@ -87,27 +87,36 @@ impl ClanRepository for ClanPostgresRepo {
     /// Retrieves all members for a clan.
     ///
     /// Role is determined by comparing user_id with the clan's leader_id.
+    /// Uses a single JOIN query to avoid N+1 problem.
     async fn get_members_by_clan_id(&self, clan_id: Uuid) -> Result<Vec<ClanMember>, AppError> {
-        // First get the clan to know the leader_id
-        let clan = self.get_clan_by_id(clan_id).await?;
+        // Single JOIN query to get both clan leader_id and members
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                cm.clan_id,
+                cm.user_id,
+                cm.joined_at,
+                c.leader_id
+            FROM clan_members cm
+            INNER JOIN clans c ON cm.clan_id = c.id
+            WHERE cm.clan_id = $1
+            "#,
+        )
+        .bind(clan_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::InternalServer(e.to_string()))?;
 
-        let leader_id = match clan {
-            Some(c) => c.leader_id(),
-            None => return Ok(vec![]),
-        };
-
-        // Get all members for this clan
-        let rows =
-            sqlx::query("SELECT clan_id, user_id, joined_at FROM clan_members WHERE clan_id = $1")
-                .bind(clan_id)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        // Handle case where clan doesn't exist (empty result from JOIN)
+        if rows.is_empty() {
+            return Ok(vec![]);
+        }
 
         let members = rows
             .iter()
             .map(|row| {
                 let user_id: Uuid = row.get("user_id");
+                let leader_id: Uuid = row.get("leader_id");
                 let joined_at: chrono::DateTime<chrono::Utc> = row.get("joined_at");
 
                 // Determine role based on whether user is the leader
@@ -149,6 +158,39 @@ impl ClanRepository for ClanPostgresRepo {
             None => Ok(None),
         }
     }
+
+    /// Retrieves user tier info (clan_id, clan_name, tier) using a single JOIN query.
+    async fn get_user_tier_info(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<(Uuid, String, ClanTier)>, AppError> {
+        let row = sqlx::query_as::<_, UserTierRow>(
+            r#"
+            SELECT c.id, c.name, c.tier
+            FROM clans c
+            INNER JOIN clan_members cm ON c.id = cm.clan_id
+            WHERE cm.user_id = $1
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        match row {
+            Some(r) => {
+                let tier = match r.tier.as_str() {
+                    "Silver" => ClanTier::Silver,
+                    "Gold" => ClanTier::Gold,
+                    "Diamond" => ClanTier::Diamond,
+                    _ => ClanTier::Bronze,
+                };
+                Ok(Some((r.id, r.name, tier)))
+            }
+            None => Ok(None),
+        }
+    }
+
     async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError> {
         sqlx::query("UPDATE clans SET total_score = total_score + $1 WHERE id = $2")
             .bind(score)
@@ -170,4 +212,11 @@ struct ClanRow {
     tier: String,
     total_score: i64,
     created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct UserTierRow {
+    id: Uuid,
+    name: String,
+    tier: String,
 }
