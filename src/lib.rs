@@ -1,6 +1,7 @@
 // Library root - exports all modules for testing and external use
 
 pub mod config;
+pub mod generated;
 pub mod modules;
 pub mod shared;
 
