@@ -80,6 +80,8 @@ async fn test_api_create_clan_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
     };
 
     let leader_id = Uuid::new_v4();
@@ -140,6 +142,8 @@ async fn test_api_join_clan_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
     };
 
     let leader_id = Uuid::new_v4();
@@ -202,6 +206,8 @@ async fn test_api_get_leaderboard_route_exists() {
             .get_multiplexed_async_connection()
             .await
             .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
     };
 
     let app = axum::Router::new()
