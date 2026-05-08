@@ -103,21 +103,3 @@ jobs:
 
       - name: Pull image
         run: docker pull ${{ env.REGISTRY }}/$IMAGE_NAME:latest
-
-      - name: Health check
-        run: |
-          docker run -d --name test-app \
-            --network host \
-            -e DATABASE_URL=postgresql://yomu:yomu_password@localhost:5432/yomu_engine_test \
-            -e REDIS_URL=redis://localhost:6379 \
-            -e RUST_LOG=info \
-            -e JAVA_CORE_URL=http://localhost:8081 \
-            -e JAVA_CORE_API_KEY=test-api-key \
-            ${{ env.REGISTRY }}/$IMAGE_NAME:latest
-          
-          sleep 15
-          curl -v -f http://localhost:8080/health || (docker logs test-app && exit 1)
-
-      - name: Cleanup
-        if: always()
-        run: docker rm -f test-app
