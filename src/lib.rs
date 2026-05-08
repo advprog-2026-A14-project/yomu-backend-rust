@@ -17,6 +17,8 @@ use utoipa::OpenApi;
 pub struct AppState {
     pub db: PgPool,
     pub redis: MultiplexedConnection,
+    pub jwt_secret: String,
+    pub java_core_api_key: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

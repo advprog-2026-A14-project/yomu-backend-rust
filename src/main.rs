@@ -3,14 +3,16 @@ mod modules;
 mod shared;
 
 use crate::shared::domain::base_error::AppError;
+use crate::shared::infrastructure::auth::api_key_middleware::api_key_auth_layer;
+use crate::shared::infrastructure::auth::jwt_middleware::jwt_auth_layer;
 use crate::shared::infrastructure::logging::init_logging;
 use crate::shared::infrastructure::telemetry::init_telemetry;
 use crate::shared::utils::response::ApiResponse;
-use axum::{Extension, Router, extract::State, response::Json, routing::get};
+use axum::{Extension, Router, extract::State, middleware, response::Json, routing::get};
 use axum_prometheus::{PrometheusMetricLayer, metrics_exporter_prometheus::PrometheusHandle};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
 use sentry_tower::NewSentryLayer;
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -122,7 +124,7 @@ async fn async_main_internal() {
 }
 
 async fn async_main(app_config: config::AppConfig) {
-    let db_pool = match config::database::init_postgres_pool(&app_config.database_url).await {
+    let db_pool = match config::database::init_postgres_pool(&app_config).await {
         Ok(pool) => pool,
         Err(e) => {
             tracing::error!("Failed connecting to database: {}", e);
@@ -150,17 +152,18 @@ async fn async_main(app_config: config::AppConfig) {
     let state = AppState {
         db: db_pool,
         redis: redis_pool,
+        jwt_secret: app_config.jwt_secret.clone(),
+        java_core_api_key: app_config.java_core_api_key.clone(),
     };
+
+    let state_for_middleware = state.clone();
 
     let middleware_stack = ServiceBuilder::new()
         .layer(CompressionLayer::new())
         .layer(prometheus_layer)
         .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::with_status_code(
-            axum::http::StatusCode::REQUEST_TIMEOUT,
-            Duration::from_secs(10),
-        ))
+        .layer(TimeoutLayer::new(Duration::from_secs(10)))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -168,9 +171,19 @@ async fn async_main(app_config: config::AppConfig) {
                 .allow_headers(Any),
         );
 
-    let api_v1_router = Router::new().merge(modules::league::presentation::routes::league_routes());
-    let internal_api_router =
-        Router::new().merge(modules::user_sync::presentation::routes::user_sync_routes());
+    let api_v1_router = Router::new()
+        .merge(modules::league::presentation::routes::league_routes())
+        .route_layer(middleware::from_fn_with_state(
+            state_for_middleware.clone(),
+            jwt_auth_layer,
+        ));
+
+    let internal_api_router = Router::new()
+        .merge(modules::user_sync::presentation::routes::user_sync_routes())
+        .route_layer(middleware::from_fn_with_state(
+            state_for_middleware.clone(),
+            api_key_auth_layer,
+        ));
 
     let swagger = SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi());
 
