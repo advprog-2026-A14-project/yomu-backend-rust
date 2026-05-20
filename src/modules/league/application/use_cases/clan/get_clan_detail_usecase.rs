@@ -1,17 +1,24 @@
-use crate::modules::league::application::dto::{ClanDetailDto, ClanMemberDto};
+use crate::modules::league::application::dto::{
+    BuffInfo, ClanDetailDto, ClanMemberDto, DebuffInfo,
+};
 use crate::modules::league::domain::entities::clan::Clan;
 use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::errors::LeagueError;
+use crate::modules::league::domain::repositories::ClanBuffRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
 use uuid::Uuid;
 
-pub struct GetClanDetailUseCase<R: ClanRepository> {
+pub struct GetClanDetailUseCase<R: ClanRepository, B: ClanBuffRepository> {
     repository: R,
+    buff_repository: B,
 }
 
-impl<R: ClanRepository> GetClanDetailUseCase<R> {
-    pub fn new(repository: R) -> Self {
-        Self { repository }
+impl<R: ClanRepository, B: ClanBuffRepository> GetClanDetailUseCase<R, B> {
+    pub fn new(repository: R, buff_repository: B) -> Self {
+        Self {
+            repository,
+            buff_repository,
+        }
     }
 
     pub async fn execute(&self, clan_id: Uuid) -> Result<ClanDetailDto, LeagueError> {
@@ -38,6 +45,31 @@ impl<R: ClanRepository> GetClanDetailUseCase<R> {
             })
             .collect();
 
+        let buffs = self
+            .buff_repository
+            .get_active_buffs(clan_id)
+            .await
+            .map_err(|e| LeagueError::ClanNotFound(e.to_string()))?;
+
+        let mut active_buffs: Vec<BuffInfo> = Vec::new();
+        let mut active_debuffs: Vec<DebuffInfo> = Vec::new();
+
+        for buff in buffs {
+            if buff.is_debuff() {
+                active_debuffs.push(DebuffInfo {
+                    name: buff.buff_name().to_string(),
+                    multiplier: buff.multiplier(),
+                    expires_at: buff.expires_at(),
+                });
+            } else {
+                active_buffs.push(BuffInfo {
+                    name: buff.buff_name().to_string(),
+                    multiplier: buff.multiplier(),
+                    expires_at: buff.expires_at(),
+                });
+            }
+        }
+
         Ok(ClanDetailDto {
             id: clan.id(),
             name: clan.name().to_string(),
@@ -46,8 +78,8 @@ impl<R: ClanRepository> GetClanDetailUseCase<R> {
             total_score: clan.total_score(),
             created_at: clan.created_at(),
             members: member_dtos,
-            active_buffs: vec![],
-            active_debuffs: vec![],
+            active_buffs,
+            active_debuffs,
         })
     }
 }
