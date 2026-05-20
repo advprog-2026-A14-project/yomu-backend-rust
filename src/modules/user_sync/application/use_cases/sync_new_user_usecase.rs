@@ -1,6 +1,7 @@
 use crate::modules::user_sync::domain::entities::ShadowUser;
 use crate::modules::user_sync::domain::errors::UserSyncError;
 use crate::modules::user_sync::domain::repositories::UserRepository;
+use tracing::instrument;
 
 pub struct SyncNewUserUseCase<R: UserRepository> {
     repository: R,
@@ -11,6 +12,7 @@ impl<R: UserRepository> SyncNewUserUseCase<R> {
         Self { repository }
     }
 
+    #[instrument(skip(self))]
     pub async fn execute(
         &self,
         dto: crate::modules::user_sync::application::dto::SyncUserRequestDto,
