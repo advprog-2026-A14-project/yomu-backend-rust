@@ -23,6 +23,9 @@ pub enum LeagueError {
 
     #[error("Max clans reached: {0}")]
     MaxClansReached(String),
+
+    #[error("Only the clan leader can perform this action: {0}")]
+    NotLeader(String),
 }
 
 impl IntoResponse for LeagueError {
@@ -33,6 +36,7 @@ impl IntoResponse for LeagueError {
             LeagueError::UserAlreadyInClan(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             LeagueError::UserNotInAnyClan(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             LeagueError::MaxClansReached(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            LeagueError::NotLeader(msg) => (StatusCode::FORBIDDEN, msg.clone()),
         };
 
         let body = ApiResponse::<()>::error(&error_message);
