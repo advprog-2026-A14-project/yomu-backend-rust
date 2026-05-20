@@ -18,4 +18,5 @@ pub trait ClanRepository: Send + Sync {
         user_id: Uuid,
     ) -> Result<Option<(Uuid, String, ClanTier)>, AppError>;
     async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
+    async fn delete_clan(&self, clan_id: Uuid) -> Result<(), AppError>;
 }
