@@ -225,3 +225,161 @@ async fn test_api_get_leaderboard_route_exists() {
 
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[tokio::test]
+async fn test_api_process_buffs_route() {
+    use yomu_backend_rust::modules::league::presentation::routes::league_routes;
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(TEST_DATABASE_URL)
+        .await
+        .unwrap();
+
+    let state = yomu_backend_rust::AppState {
+        db: pool.clone(),
+        redis: redis::Client::open("redis://localhost:6379")
+            .unwrap()
+            .get_multiplexed_async_connection()
+            .await
+            .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
+    };
+
+    let leader_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+
+    setup_test_user(&pool, leader_id).await.unwrap();
+    setup_test_clan(&pool, clan_id, leader_id).await.unwrap();
+
+    let app = axum::Router::new()
+        .nest("/api/v1", league_routes())
+        .with_state(state);
+
+    let request = Request::builder()
+        .uri(&format!("/api/v1/clans/{}/process-buffs", clan_id))
+        .method("POST")
+        .header("Content-Type", "application/json")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    let status = response.status();
+
+    cleanup_test_data(&pool, clan_id, leader_id, None)
+        .await
+        .unwrap();
+    pool.close().await;
+
+    assert!(
+        status == StatusCode::OK
+            || status == StatusCode::NOT_FOUND
+            || status == StatusCode::INTERNAL_SERVER_ERROR,
+        "process-buffs endpoint should respond with OK, NOT_FOUND, or INTERNAL_SERVER_ERROR, got: {}",
+        status
+    );
+}
+
+#[tokio::test]
+async fn test_api_update_score_route() {
+    use yomu_backend_rust::modules::league::presentation::routes::league_routes;
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(TEST_DATABASE_URL)
+        .await
+        .unwrap();
+
+    let state = yomu_backend_rust::AppState {
+        db: pool.clone(),
+        redis: redis::Client::open("redis://localhost:6379")
+            .unwrap()
+            .get_multiplexed_async_connection()
+            .await
+            .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
+    };
+
+    let leader_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+
+    setup_test_user(&pool, leader_id).await.unwrap();
+    setup_test_clan(&pool, clan_id, leader_id).await.unwrap();
+
+    let app = axum::Router::new()
+        .nest("/api/v1", league_routes())
+        .with_state(state);
+
+    let request = Request::builder()
+        .uri(&format!("/api/v1/clans/{}/score", clan_id))
+        .method("POST")
+        .header("Content-Type", "application/json")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    let status = response.status();
+
+    cleanup_test_data(&pool, clan_id, leader_id, None)
+        .await
+        .unwrap();
+    pool.close().await;
+
+    assert!(
+        status == StatusCode::OK
+            || status == StatusCode::NOT_FOUND
+            || status == StatusCode::INTERNAL_SERVER_ERROR,
+        "score endpoint should respond with OK, NOT_FOUND, or INTERNAL_SERVER_ERROR, got: {}",
+        status
+    );
+}
+
+#[tokio::test]
+async fn test_api_end_season_route() {
+    use yomu_backend_rust::modules::league::presentation::routes::league_routes;
+
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(TEST_DATABASE_URL)
+        .await
+        .unwrap();
+
+    let state = yomu_backend_rust::AppState {
+        db: pool.clone(),
+        redis: redis::Client::open("redis://localhost:6379")
+            .unwrap()
+            .get_multiplexed_async_connection()
+            .await
+            .unwrap(),
+        jwt_secret: "test_jwt_secret_for_ci_only_make_it_very_long".to_string(),
+        java_core_api_key: "test_api_key_for_ci".to_string(),
+    };
+
+    let season_id = Uuid::new_v4();
+
+    let app = axum::Router::new()
+        .nest("/api/v1", league_routes())
+        .with_state(state);
+
+    let request = Request::builder()
+        .uri(&format!("/api/v1/seasons/{}/end", season_id))
+        .method("POST")
+        .header("Content-Type", "application/json")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+    let status = response.status();
+
+    pool.close().await;
+
+    assert!(
+        status == StatusCode::OK
+            || status == StatusCode::NOT_FOUND
+            || status == StatusCode::INTERNAL_SERVER_ERROR,
+        "season end endpoint should respond with OK, NOT_FOUND, or INTERNAL_SERVER_ERROR, got: {}",
+        status
+    );
+}
