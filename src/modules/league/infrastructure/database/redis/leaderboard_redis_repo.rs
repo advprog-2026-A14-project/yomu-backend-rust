@@ -21,16 +21,9 @@ impl LeaderboardRedisRepo {
 
 #[async_trait]
 impl LeaderboardCache for LeaderboardRedisRepo {
-    /// Increments clan score in Redis using ZINCRBY command.
-    ///
-    /// Updates the global leaderboard (not tier-specific).
-    /// Thread-safe atomic increment operation.
     async fn update_clan_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError> {
         let mut con = self.conn.clone();
-
         let key = self.get_key("global");
-
-        // ZINCRBY returns the new score as a string
         let _: String = redis::cmd("ZINCRBY")
             .arg(&key)
             .arg(score)
@@ -38,24 +31,16 @@ impl LeaderboardCache for LeaderboardRedisRepo {
             .query_async(&mut con)
             .await
             .map_err(|e| AppError::InternalServer(e.to_string()))?;
-
         Ok(())
     }
 
-    /// Fetches top clans from Redis sorted set using ZREVRANGE.
-    ///
-    /// Redis key format: "leaderboard:{tier}"
-    /// Returns clans with ranks 1-10 by default. Score is parsed as i64.
     async fn get_top_clans(
         &self,
         tier: &str,
         limit: usize,
     ) -> Result<Vec<LeaderboardEntry>, AppError> {
         let mut con = self.conn.clone();
-
         let key = self.get_key(tier);
-
-        // ZREVRANGE with WITHSCORES returns Vec<(String, String)>
         let results: Vec<(String, String)> = redis::cmd("ZREVRANGE")
             .arg(&key)
             .arg(0)
@@ -64,7 +49,6 @@ impl LeaderboardCache for LeaderboardRedisRepo {
             .query_async(&mut con)
             .await
             .map_err(|e| AppError::InternalServer(e.to_string()))?;
-
         let entries: Vec<LeaderboardEntry> = results
             .iter()
             .enumerate()
@@ -80,7 +64,30 @@ impl LeaderboardCache for LeaderboardRedisRepo {
                 }
             })
             .collect();
-
         Ok(entries)
+    }
+
+    async fn get_clan_score(&self, clan_id: Uuid) -> Result<Option<i64>, AppError> {
+        let mut con = self.conn.clone();
+        let key = self.get_key("global");
+        let score: Option<f64> = redis::cmd("ZSCORE")
+            .arg(&key)
+            .arg(clan_id.to_string())
+            .query_async(&mut con)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        Ok(score.map(|s| s as i64))
+    }
+
+    async fn remove_clan_from_leaderboard(&self, clan_id: Uuid) -> Result<(), AppError> {
+        let mut con = self.conn.clone();
+        let key = self.get_key("global");
+        let _: () = redis::cmd("ZREM")
+            .arg(&key)
+            .arg(clan_id.to_string())
+            .query_async(&mut con)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        Ok(())
     }
 }

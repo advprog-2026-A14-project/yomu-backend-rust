@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS seasons (
+    id UUID PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    tier VARCHAR(50) NOT NULL,
+    starts_at TIMESTAMPTZ NOT NULL,
+    ends_at TIMESTAMPTZ NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true
+);

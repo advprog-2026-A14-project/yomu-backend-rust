@@ -1,4 +1,4 @@
-# Multi-stage build for yomu-backend-rust
+# Multi-stage build for debugging
 FROM rust:1.93-bookworm AS builder
 
 WORKDIR /app
@@ -25,10 +25,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     netcat-openbsd \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/log/yomu /app \
-    && addgroup --system --gid 1001 appgroup \
-    && adduser --system --uid 1001 --ingroup appgroup --shell /bin/false yomuuser \
-    && chown -R yomuuser:appgroup /app /var/log/yomu
+    && useradd --system --no-create-home --shell /bin/false yomuuser \
+    && chown -R yomuuser:yomuuser /app
 
 USER yomuuser
 

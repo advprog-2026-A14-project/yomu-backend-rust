@@ -5,11 +5,12 @@ use axum::{
     Json,
 };
 use uuid::Uuid;
+use tracing::instrument;
 
-//use crate::modules::gamification::application::use_cases::claim_mission_reward::ClaimMissionRewardUseCase;
 use crate::shared::utils::response::ApiResponse;
 use crate::modules::gamification::presentation::routes::GamificationState;
 
+#[instrument(skip(state))]
 pub async fn claim_mission_reward(
     State(state): State<Arc<GamificationState>>,
     Path(mission_id): Path<Uuid>,

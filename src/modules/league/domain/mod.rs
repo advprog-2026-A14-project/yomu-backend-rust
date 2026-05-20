@@ -6,3 +6,4 @@ pub mod repositories;
 
 pub use repositories::ClanRepository;
 pub use repositories::LeaderboardCache;
+pub use repositories::SeasonRepository;

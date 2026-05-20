@@ -94,6 +94,7 @@ async fn metrics_handler(
 }
 
 fn main() {
+    eprintln!("DEBUG: main() starting...");
     let _sentry = sentry::init(sentry::ClientOptions {
         dsn: std::env::var("SENTRY_DSN")
             .ok()
@@ -107,7 +108,10 @@ fn main() {
         ..Default::default()
     });
 
+    eprintln!("DEBUG: sentry init done");
+
     let _log_guard = init_logging(None);
+    eprintln!("DEBUG: logging init done");
 
     tracing::info!("Starting Yomu Engine Rust...");
 
@@ -116,7 +120,9 @@ fn main() {
         .build()
         .unwrap();
 
+    eprintln!("DEBUG: tokio runtime built, blocking on async...");
     rt.block_on(async_main_internal());
+    eprintln!("DEBUG: async_main_internal returned, exiting");
 }
 
 async fn async_main_internal() {
