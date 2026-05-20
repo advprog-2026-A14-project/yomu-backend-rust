@@ -201,6 +201,17 @@ impl ClanRepository for ClanPostgresRepo {
 
         Ok(())
     }
+
+    /// Deletes a clan by ID. Members are cascaded via FK constraint.
+    async fn delete_clan(&self, clan_id: Uuid) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM clans WHERE id = $1")
+            .bind(clan_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 // Helper struct for sqlx::query_as!
