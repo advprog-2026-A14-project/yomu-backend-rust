@@ -63,7 +63,7 @@ async fn health_check(
         version: env!("CARGO_PKG_VERSION").to_string(),
         postgres: postgres_status,
         redis: redis_status,
-        grpc: "running".to_string(),
+        grpc: "running!".to_string(),
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
