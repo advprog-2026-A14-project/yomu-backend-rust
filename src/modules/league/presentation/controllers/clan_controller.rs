@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
 };
@@ -239,7 +239,7 @@ pub async fn create_join_request_handler(
 pub async fn get_pending_requests_handler(
     State(state): State<AppState>,
     Path(clan_id): Path<Uuid>,
-    Json(dto): Json<ApproveRejectDto>,
+    Query(dto): Query<ApproveRejectDto>,
 ) -> Result<Json<ApiResponse<Vec<JoinRequestResponseDto>>>, LeagueError> {
     let clan_repo = ClanPostgresRepo::new(state.db.clone());
     let join_repo = ClanJoinRequestPostgresRepo::new(state.db);
