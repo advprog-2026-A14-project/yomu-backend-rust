@@ -26,11 +26,11 @@ mod achievement_test {
         let user_id = Uuid::new_v4();
         let mut user_ach = UserAchievement::new(user_id, achievement.id());
 
-        user_ach.add_progress(3, achievement.milestone_target());
+        user_ach.add_progress(3, achievement.milestone_target(), Utc::now());
         assert_eq!(user_ach.current_progress(), 3);
         assert!(!user_ach.is_completed());
 
-        user_ach.add_progress(3, achievement.milestone_target());
+        user_ach.add_progress(3, achievement.milestone_target(), Utc::now());
         
         assert_eq!(user_ach.current_progress(), 5);
         assert!(user_ach.is_completed());
@@ -41,7 +41,7 @@ mod achievement_test {
 mod misson_test {
     use yomu_backend_rust::modules::gamification::domain::entities::{
         achievement::{Achievement, AchievementType},
-        daily_mission::{DailyMission},
+        daily_mission::{DailyMission, MissionType},
         user_achievement::{UserAchievement},
         user_mission::{UserMission},
     };
@@ -58,6 +58,7 @@ mod misson_test {
             2,
             date,
             50,
+            MissionType::ReadArticle,
         ).expect("Gagal membuat Daily Mission valid");
 
         assert_eq!(mission.reward_points(), 50);
