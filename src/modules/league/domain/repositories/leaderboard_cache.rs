@@ -11,4 +11,6 @@ pub trait LeaderboardCache: Send + Sync {
         tier: &str,
         limit: usize,
     ) -> Result<Vec<LeaderboardEntry>, AppError>;
+    async fn get_clan_score(&self, clan_id: Uuid) -> Result<Option<i64>, AppError>;
+    async fn remove_clan_from_leaderboard(&self, clan_id: Uuid) -> Result<(), AppError>;
 }

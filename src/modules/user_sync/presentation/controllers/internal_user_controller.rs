@@ -10,6 +10,7 @@ use crate::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
+use tracing::instrument;
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
@@ -30,6 +31,7 @@ pub struct SyncUserResponseDto {
     ),
     tag = "User Sync"
 )]
+#[instrument(skip(state))]
 pub async fn sync_user_handler(
     State(state): State<AppState>,
     Json(dto): Json<SyncUserRequestDto>,

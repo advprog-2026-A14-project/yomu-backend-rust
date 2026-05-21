@@ -1,4 +1,7 @@
 // Library root - exports all modules for testing and external use
+// Many items here are consumed by integration tests, not the binary.
+// Rust's cross-target dead code analysis doesn't see test usage from here.
+#![allow(dead_code)]
 
 pub mod config;
 pub mod generated;
@@ -38,6 +41,8 @@ pub struct HealthResponse {
         crate::modules::league::presentation::controllers::clan_controller::join_clan_handler,
         crate::modules::league::presentation::controllers::clan_controller::get_clan_detail_handler,
         crate::modules::league::presentation::controllers::clan_controller::get_user_tier_handler,
+        // League - Score
+        crate::modules::league::presentation::controllers::score_controller::update_score_handler,
         // League - Leaderboard
         crate::modules::league::presentation::controllers::score_controller::get_leaderboard_handler,
         // User Sync
@@ -51,12 +56,16 @@ pub struct HealthResponse {
             crate::modules::league::application::dto::JoinClanDto,
             crate::modules::league::application::dto::LeaderboardDto,
             crate::modules::league::application::dto::LeaderboardEntry,
+            crate::modules::league::application::dto::clan_detail_dto::BuffInfo,
             crate::modules::league::application::dto::clan_detail_dto::ClanDetailDto,
             crate::modules::league::application::dto::clan_detail_dto::ClanMemberDto,
+            crate::modules::league::application::dto::clan_detail_dto::DebuffInfo,
+            crate::modules::league::application::dto::score_result_dto::ScoreResultDto,
             crate::modules::league::application::dto::user_tier_dto::UserTierDto,
             // League Entities
             crate::modules::league::domain::entities::clan::Clan,
             crate::modules::league::domain::entities::clan::ClanTier,
+            crate::modules::league::domain::entities::clan_buff::ClanBuff,
             crate::modules::league::domain::entities::clan_member::ClanMember,
             crate::modules::league::domain::entities::clan_member::MemberRole,
             // User Sync DTOs
