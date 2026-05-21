@@ -24,7 +24,7 @@ jobs:
           client-payload: |
             {
               "service": "yomu-backend-rust",
-              "image_tag": "latest",
+              "image_tag": "${{ github.ref_name }}",
               "sha": "${{ github.sha }}",
               "branch": "${{ github.ref_name }}"
             }
