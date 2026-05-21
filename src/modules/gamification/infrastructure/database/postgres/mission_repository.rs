@@ -3,8 +3,8 @@ use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::modules::gamification::domain::entities::user_mission::UserMission;
 use crate::modules::gamification::domain::entities::daily_mission::{DailyMission, MissionType};
+use crate::modules::gamification::domain::entities::user_mission::UserMission;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 
 pub struct PostgresMissionRepository {

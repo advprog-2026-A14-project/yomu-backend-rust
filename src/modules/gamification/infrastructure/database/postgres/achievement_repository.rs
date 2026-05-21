@@ -3,9 +3,7 @@ use sqlx::PgPool;
 // use std::str::FromStr;
 use uuid::Uuid;
 
-use crate::modules::gamification::domain::entities::achievement::{
-    Achievement, AchievementType,
-};
+use crate::modules::gamification::domain::entities::achievement::{Achievement, AchievementType};
 use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 

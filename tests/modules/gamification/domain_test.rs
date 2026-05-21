@@ -1,13 +1,13 @@
 // Unit tests for Gamification domain
 mod achievement_test {
-    use yomu_backend_rust::modules::gamification::domain::entities::{
-        achievement::{Achievement, AchievementType},
-        daily_mission::{DailyMission},
-        user_achievement::{UserAchievement},
-        user_mission::{UserMission},
-    };
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
+    use yomu_backend_rust::modules::gamification::domain::entities::{
+        achievement::{Achievement, AchievementType},
+        daily_mission::DailyMission,
+        user_achievement::UserAchievement,
+        user_mission::UserMission,
+    };
 
     #[test]
     fn test_achievement() {
@@ -18,7 +18,8 @@ mod achievement_test {
             5,
             AchievementType::Rare,
             150,
-        ).expect("Gagal membuat Achievement valid");
+        )
+        .expect("Gagal membuat Achievement valid");
 
         assert_eq!(achievement.reward_points(), 150);
         assert_eq!(achievement.milestone_target(), 5);
@@ -31,7 +32,7 @@ mod achievement_test {
         assert!(!user_ach.is_completed());
 
         user_ach.add_progress(3, achievement.milestone_target(), Utc::now());
-        
+
         assert_eq!(user_ach.current_progress(), 5);
         assert!(user_ach.is_completed());
         assert!(user_ach.completed_at().is_some());
@@ -39,14 +40,14 @@ mod achievement_test {
 }
 
 mod misson_test {
+    use chrono::NaiveDate;
+    use uuid::Uuid;
     use yomu_backend_rust::modules::gamification::domain::entities::{
         achievement::{Achievement, AchievementType},
         daily_mission::{DailyMission, MissionType},
-        user_achievement::{UserAchievement},
-        user_mission::{UserMission},
+        user_achievement::UserAchievement,
+        user_mission::UserMission,
     };
-    use chrono::NaiveDate;
-    use uuid::Uuid;
 
     #[test]
     fn test_daily_mission() {
@@ -59,7 +60,8 @@ mod misson_test {
             date,
             50,
             MissionType::ReadArticle,
-        ).expect("Gagal membuat Daily Mission valid");
+        )
+        .expect("Gagal membuat Daily Mission valid");
 
         assert_eq!(mission.reward_points(), 50);
 
@@ -67,10 +69,13 @@ mod misson_test {
         let mut user_mission = UserMission::new(user_id, mission.id());
 
         user_mission.add_progress(1, mission.target_count());
-        
+
         let failed_claim = user_mission.claim_reward(mission.target_count());
         assert!(failed_claim.is_err());
-        assert_eq!(failed_claim.unwrap_err(), "Misi belum selesai, tidak bisa claim reward.");
+        assert_eq!(
+            failed_claim.unwrap_err(),
+            "Misi belum selesai, tidak bisa claim reward."
+        );
 
         user_mission.add_progress(1, mission.target_count());
 
@@ -80,6 +85,9 @@ mod misson_test {
 
         let double_claim = user_mission.claim_reward(mission.target_count());
         assert!(double_claim.is_err());
-        assert_eq!(double_claim.unwrap_err(), "Reward untuk misi ini sudah di-claim sebelumnya.");
+        assert_eq!(
+            double_claim.unwrap_err(),
+            "Reward untuk misi ini sudah di-claim sebelumnya."
+        );
     }
 }
