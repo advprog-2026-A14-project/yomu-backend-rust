@@ -197,7 +197,12 @@ mod tests {
         let updated_at = Utc::now();
 
         let req = ClanJoinRequest::with_id(
-            id, clan_id, user_id, RequestStatus::Approved, created_at, updated_at,
+            id,
+            clan_id,
+            user_id,
+            RequestStatus::Approved,
+            created_at,
+            updated_at,
         );
         assert_eq!(req.id(), id);
         assert_eq!(req.clan_id(), clan_id);

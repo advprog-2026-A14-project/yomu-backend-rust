@@ -63,6 +63,7 @@ async fn health_check(
         version: env!("CARGO_PKG_VERSION").to_string(),
         postgres: postgres_status,
         redis: redis_status,
+        grpc: "running".to_string(),
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
@@ -169,7 +170,10 @@ async fn async_main(app_config: config::AppConfig) {
         .layer(prometheus_layer)
         .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10)))
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(10),
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -222,6 +226,7 @@ async fn async_main(app_config: config::AppConfig) {
     let league_svc = modules::league::presentation::grpc::league_handler::LeagueGrpcHandler::new(
         redis_pool.clone(),
     );
+    let health_svc = shared::presentation::grpc::health_handler::GrpcHealthHandler::new();
 
     let grpc_router = tonic::transport::Server::builder()
         .add_service(
@@ -236,6 +241,9 @@ async fn async_main(app_config: config::AppConfig) {
         )
         .add_service(
             crate::generated::league::league_service_server::LeagueServiceServer::new(league_svc),
+        )
+        .add_service(
+            crate::generated::health::health_service_server::HealthServiceServer::new(health_svc),
         );
 
     let http_server = tokio::spawn(async move {

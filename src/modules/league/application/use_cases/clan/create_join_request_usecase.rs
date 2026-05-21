@@ -1,8 +1,10 @@
-use crate::modules::league::application::dto::join_request_dto::{CreateJoinRequestDto, JoinRequestResponseDto};
+use crate::modules::league::application::dto::join_request_dto::{
+    CreateJoinRequestDto, JoinRequestResponseDto,
+};
 use crate::modules::league::domain::entities::clan_join_request::ClanJoinRequest;
 use crate::modules::league::domain::errors::LeagueError;
-use crate::modules::league::domain::repositories::clan_join_request_repository::ClanJoinRequestRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
+use crate::modules::league::domain::repositories::clan_join_request_repository::ClanJoinRequestRepository;
 use tracing::instrument;
 
 pub struct CreateJoinRequestUseCase<R: ClanRepository, J: ClanJoinRequestRepository> {
@@ -12,19 +14,24 @@ pub struct CreateJoinRequestUseCase<R: ClanRepository, J: ClanJoinRequestReposit
 
 impl<R: ClanRepository, J: ClanJoinRequestRepository> CreateJoinRequestUseCase<R, J> {
     pub fn new(clan_repo: R, join_repo: J) -> Self {
-        Self { clan_repo, join_repo }
+        Self {
+            clan_repo,
+            join_repo,
+        }
     }
 
     #[instrument(skip(self))]
-    pub async fn execute(&self, dto: CreateJoinRequestDto) -> Result<JoinRequestResponseDto, LeagueError> {
+    pub async fn execute(
+        &self,
+        dto: CreateJoinRequestDto,
+    ) -> Result<JoinRequestResponseDto, LeagueError> {
         // Validate clan exists
         let clan = self
             .clan_repo
             .get_clan_by_id(dto.clan_id)
             .await
             .map_err(|e| LeagueError::ClanNotFound(e.to_string()))?;
-        let _clan = clan
-            .ok_or_else(|| LeagueError::ClanNotFound(dto.clan_id.to_string()))?;
+        let _clan = clan.ok_or_else(|| LeagueError::ClanNotFound(dto.clan_id.to_string()))?;
 
         // User must not be in any clan
         let in_clan = self

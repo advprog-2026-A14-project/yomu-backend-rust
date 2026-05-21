@@ -11,7 +11,10 @@ pub trait ClanJoinRequestRepository: Send + Sync {
         &self,
         clan_id: Uuid,
     ) -> Result<Vec<ClanJoinRequest>, AppError>;
-    async fn get_request_by_id(&self, request_id: Uuid) -> Result<Option<ClanJoinRequest>, AppError>;
+    async fn get_request_by_id(
+        &self,
+        request_id: Uuid,
+    ) -> Result<Option<ClanJoinRequest>, AppError>;
     async fn get_pending_request_by_user(
         &self,
         user_id: Uuid,

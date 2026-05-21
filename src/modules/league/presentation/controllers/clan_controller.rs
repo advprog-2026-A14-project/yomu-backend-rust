@@ -17,17 +17,18 @@ use crate::modules::league::application::ProcessBuffsUseCase;
 use crate::modules::league::application::RejectJoinRequestUseCase;
 use crate::modules::league::application::dto::{
     ApproveRejectDto, BuffProcessResultDto, ClanDetailDto, CreateClanDto, CreateJoinRequestDto,
-    DeleteClanDto, JoinClanDto, JoinRequestResponseDto, SeasonResultDto, user_tier_dto::UserTierDto,
+    DeleteClanDto, JoinClanDto, JoinRequestResponseDto, SeasonResultDto,
+    user_tier_dto::UserTierDto,
 };
 use crate::modules::league::application::use_cases::GetUserTierUseCase;
 use crate::modules::league::application::use_cases::TriggerSeasonEndUseCase;
 use crate::modules::league::domain::entities::clan::Clan;
 use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::errors::LeagueError;
-use crate::modules::league::infrastructure::database::postgres::clan_buff_postgres_repo::ClanBuffPostgresRepo;
-use crate::modules::league::infrastructure::database::postgres::clan_join_request_postgres_repo::ClanJoinRequestPostgresRepo;
 use crate::modules::league::infrastructure::database::postgres::ClanPostgresRepo;
 use crate::modules::league::infrastructure::database::postgres::SeasonPostgresRepo;
+use crate::modules::league::infrastructure::database::postgres::clan_buff_postgres_repo::ClanBuffPostgresRepo;
+use crate::modules::league::infrastructure::database::postgres::clan_join_request_postgres_repo::ClanJoinRequestPostgresRepo;
 use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRepo;
 use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
@@ -247,7 +248,10 @@ pub async fn get_pending_requests_handler(
 
     let requests = use_case.execute(clan_id, dto.caller_id).await?;
 
-    Ok(Json(ApiResponse::success("Pending requests retrieved", requests)))
+    Ok(Json(ApiResponse::success(
+        "Pending requests retrieved",
+        requests,
+    )))
 }
 
 /// POST /api/v1/clans/join-requests/{request_id}/approve

@@ -7,3 +7,6 @@ pub mod quizsync {
 pub mod league {
     tonic::include_proto!("league");
 }
+pub mod health {
+    tonic::include_proto!("health");
+}

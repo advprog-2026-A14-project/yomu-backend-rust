@@ -31,6 +31,7 @@ pub struct HealthResponse {
     pub version: String,
     pub postgres: String,
     pub redis: String,
+    pub grpc: String,
 }
 
 #[derive(OpenApi)]

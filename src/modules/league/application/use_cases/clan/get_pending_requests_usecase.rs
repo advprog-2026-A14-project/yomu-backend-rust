@@ -1,7 +1,7 @@
 use crate::modules::league::application::dto::join_request_dto::JoinRequestResponseDto;
 use crate::modules::league::domain::errors::LeagueError;
-use crate::modules::league::domain::repositories::clan_join_request_repository::ClanJoinRequestRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
+use crate::modules::league::domain::repositories::clan_join_request_repository::ClanJoinRequestRepository;
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -12,19 +12,25 @@ pub struct GetPendingRequestsUseCase<R: ClanRepository, J: ClanJoinRequestReposi
 
 impl<R: ClanRepository, J: ClanJoinRequestRepository> GetPendingRequestsUseCase<R, J> {
     pub fn new(clan_repo: R, join_repo: J) -> Self {
-        Self { clan_repo, join_repo }
+        Self {
+            clan_repo,
+            join_repo,
+        }
     }
 
     #[instrument(skip(self))]
-    pub async fn execute(&self, clan_id: Uuid, caller_id: Uuid) -> Result<Vec<JoinRequestResponseDto>, LeagueError> {
+    pub async fn execute(
+        &self,
+        clan_id: Uuid,
+        caller_id: Uuid,
+    ) -> Result<Vec<JoinRequestResponseDto>, LeagueError> {
         // Validate clan exists
         let clan = self
             .clan_repo
             .get_clan_by_id(clan_id)
             .await
             .map_err(|e| LeagueError::ClanNotFound(e.to_string()))?;
-        let clan = clan
-            .ok_or_else(|| LeagueError::ClanNotFound(clan_id.to_string()))?;
+        let clan = clan.ok_or_else(|| LeagueError::ClanNotFound(clan_id.to_string()))?;
 
         // Only leader can view pending requests
         if clan.leader_id() != caller_id {
