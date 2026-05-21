@@ -2,21 +2,26 @@ use async_trait::async_trait;
 use mockall::mock;
 use uuid::Uuid;
 
+use yomu_backend_rust::modules::league::application::ApproveJoinRequestUseCase;
 use yomu_backend_rust::modules::league::application::CreateClanUseCase;
+use yomu_backend_rust::modules::league::application::CreateJoinRequestUseCase;
 use yomu_backend_rust::modules::league::application::DeleteClanUseCase;
 use yomu_backend_rust::modules::league::application::GetClanBuffsUseCase;
 use yomu_backend_rust::modules::league::application::GetClanDetailUseCase;
 use yomu_backend_rust::modules::league::application::GetLeaderboardUseCase;
+use yomu_backend_rust::modules::league::application::GetPendingRequestsUseCase;
 use yomu_backend_rust::modules::league::application::GetUserTierUseCase;
 use yomu_backend_rust::modules::league::application::JoinClanUseCase;
 use yomu_backend_rust::modules::league::application::ProcessBuffsUseCase;
+use yomu_backend_rust::modules::league::application::RejectJoinRequestUseCase;
 use yomu_backend_rust::modules::league::application::UpdateScoreWithBuffsUseCase;
 use yomu_backend_rust::modules::league::application::dto::BuffProcessResultDto;
 use yomu_backend_rust::modules::league::application::dto::ClanBuffsDto;
 use yomu_backend_rust::modules::league::application::dto::CreateClanDto;
 use yomu_backend_rust::modules::league::application::dto::DeleteClanDto;
+use yomu_backend_rust::modules::league::application::dto::ApproveRejectDto;
+use yomu_backend_rust::modules::league::application::dto::CreateJoinRequestDto;
 use yomu_backend_rust::modules::league::application::dto::JoinClanDto;
-use yomu_backend_rust::modules::league::application::dto::LeaderboardDto;
 use yomu_backend_rust::modules::league::application::dto::LeaderboardEntry;
 use yomu_backend_rust::modules::league::application::dto::ScoreResultDto;
 use yomu_backend_rust::modules::league::application::dto::SeasonResultDto;
@@ -25,11 +30,14 @@ use yomu_backend_rust::modules::league::application::use_cases::TriggerSeasonEnd
 use yomu_backend_rust::modules::league::domain::entities::clan::Clan;
 use yomu_backend_rust::modules::league::domain::entities::clan::ClanTier;
 use yomu_backend_rust::modules::league::domain::entities::clan_buff::ClanBuff;
+use yomu_backend_rust::modules::league::domain::entities::clan_join_request::ClanJoinRequest;
+use yomu_backend_rust::modules::league::domain::entities::clan_join_request::RequestStatus;
 use yomu_backend_rust::modules::league::domain::entities::clan_member::ClanMember;
 use yomu_backend_rust::modules::league::domain::entities::clan_member::MemberRole;
 use yomu_backend_rust::modules::league::domain::entities::season::Season;
 use yomu_backend_rust::modules::league::domain::errors::LeagueError;
 use yomu_backend_rust::modules::league::domain::repositories::ClanBuffRepository;
+use yomu_backend_rust::modules::league::domain::repositories::ClanJoinRequestRepository;
 use yomu_backend_rust::modules::league::domain::repositories::ClanRepository;
 use yomu_backend_rust::modules::league::domain::repositories::LeaderboardCache;
 use yomu_backend_rust::modules::league::domain::repositories::season_repository::SeasonRepository;
@@ -87,6 +95,21 @@ mock! {
         async fn get_season_results(&self, tier: &ClanTier, season_id: Uuid) -> Result<Vec<(Uuid, String, i64, i64)>, AppError>;
         async fn mark_season_ended(&self, season_id: Uuid) -> Result<(), AppError>;
         async fn update_clan_tier(&self, clan_id: Uuid, new_tier: &ClanTier) -> Result<(), AppError>;
+    }
+}
+
+mock! {
+    ClanJoinRequestRepo {}
+    #[async_trait]
+    impl ClanJoinRequestRepository for ClanJoinRequestRepo {
+        async fn create_request(&self, request: &ClanJoinRequest) -> Result<(), AppError>;
+        async fn get_pending_requests_by_clan(&self, clan_id: Uuid) -> Result<Vec<ClanJoinRequest>, AppError>;
+        async fn get_request_by_id(&self, request_id: Uuid) -> Result<Option<ClanJoinRequest>, AppError>;
+        async fn get_pending_request_by_user(&self, user_id: Uuid, clan_id: Uuid) -> Result<Option<ClanJoinRequest>, AppError>;
+        async fn has_pending_request(&self, user_id: Uuid) -> Result<bool, AppError>;
+        async fn update_request_status(&self, request_id: Uuid, status: &RequestStatus) -> Result<(), AppError>;
+        async fn delete_request(&self, request_id: Uuid) -> Result<(), AppError>;
+        async fn delete_pending_requests_by_user(&self, user_id: Uuid) -> Result<(), AppError>;
     }
 }
 
@@ -1550,7 +1573,661 @@ async fn get_clan_buffs_only_debuffs_no_buffs() {
 }
 
 // ============================================================
-// Edge Cases
+// CreateJoinRequestUseCase Tests
+// ============================================================
+
+#[tokio::test]
+async fn create_join_request_success() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan().return_once(|_| Ok(false));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_pending_request_by_user().return_once(|_, _| Ok(None));
+    mock_join_repo.expect_create_request().return_once(|_| Ok(()));
+
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    let response = result.unwrap();
+    assert_eq!(response.status, "Pending");
+    assert_eq!(response.clan_id, clan_id);
+    assert_eq!(response.user_id, user_id);
+}
+
+#[tokio::test]
+async fn create_join_request_clan_not_found() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(None));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn create_join_request_user_already_in_clan() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan().return_once(|_| Ok(true));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::UserAlreadyInClan(_)));
+}
+
+#[tokio::test]
+async fn create_join_request_duplicate() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let existing_request = ClanJoinRequest::new(clan_id, user_id);
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan().return_once(|_| Ok(false));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_pending_request_by_user().return_once(|_, _| Ok(Some(existing_request)));
+
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::DuplicateRequest(_)));
+}
+
+// ============================================================
+// ApproveJoinRequestUseCase Tests
+// ============================================================
+
+#[tokio::test]
+async fn approve_join_request_success() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let mut request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+    request.approve();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(false));
+    mock_clan_repo.expect_add_member().return_once(|_| Ok(()));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    {
+        let req = ClanJoinRequest::with_id(
+            request_id, clan_id, user_id, RequestStatus::Pending,
+            chrono::Utc::now(), chrono::Utc::now(),
+        );
+        mock_join_repo.expect_get_request_by_id()
+            .with(mockall::predicate::eq(request_id))
+            .return_once(|_| Ok(Some(req)));
+    }
+    mock_join_repo.expect_update_request_status().return_once(|_, _| Ok(()));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    let response = result.unwrap();
+    assert_eq!(response.status, "Approved");
+}
+
+#[tokio::test]
+async fn approve_join_request_not_leader() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let other_user = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: other_user };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::NotLeader(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_not_found() {
+    let request_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(None));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::RequestNotFound(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_already_processed() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Approved,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::RequestAlreadyProcessed(_)));
+}
+
+// ============================================================
+// RejectJoinRequestUseCase Tests
+// ============================================================
+
+#[tokio::test]
+async fn reject_join_request_success() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo.expect_update_request_status().return_once(|_, _| Ok(()));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    let response = result.unwrap();
+    assert_eq!(response.status, "Rejected");
+}
+
+#[tokio::test]
+async fn reject_join_request_not_leader() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let other_user = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: other_user };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::NotLeader(_)));
+}
+
+// ============================================================
+// GetPendingRequestsUseCase Tests
+// ============================================================
+
+#[tokio::test]
+async fn get_pending_requests_success() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let user1 = Uuid::new_v4();
+    let user2 = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let requests = vec![
+        ClanJoinRequest::new(clan_id, user1),
+        ClanJoinRequest::new(clan_id, user2),
+    ];
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_pending_requests_by_clan().return_once(|_| Ok(requests));
+
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, mock_join_repo);
+    let result = use_case.execute(clan_id, leader_id).await;
+
+    assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+    let dtos = result.unwrap();
+    assert_eq!(dtos.len(), 2);
+}
+
+#[tokio::test]
+async fn get_pending_requests_not_leader() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let other_user = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, mock_join_repo);
+    let result = use_case.execute(clan_id, other_user).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::NotLeader(_)));
+}
+
+#[tokio::test]
+async fn get_pending_requests_empty() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_pending_requests_by_clan().return_once(|_| Ok(vec![]));
+
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, mock_join_repo);
+    let result = use_case.execute(clan_id, leader_id).await;
+
+    assert!(result.is_ok());
+    let dtos = result.unwrap();
+    assert!(dtos.is_empty());
+}
+
+// ============================================================
+// Edge Cases — Join Request State Transitions & Race Conditions
+// ============================================================
+
+// Approve an already-rejected request -> should be rejected as already processed
+#[tokio::test]
+async fn approve_already_rejected_request_fails() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Rejected,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: Uuid::new_v4() };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::RequestAlreadyProcessed(_)));
+}
+
+// Reject an already-approved request -> should be rejected as already processed
+#[tokio::test]
+async fn reject_already_approved_request_fails() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Approved,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: Uuid::new_v4() };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::RequestAlreadyProcessed(_)));
+}
+
+// Approve when user joined another clan in the meantime -> auto-reject + error
+#[tokio::test]
+async fn approve_user_joined_different_clan_in_meantime() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(true));
+    mock_clan_repo.expect_add_member().never();
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo.expect_update_request_status().return_once(|_, _| Ok(()));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::UserAlreadyInClan(_)));
+}
+
+// Approve when the clan was deleted between request creation and approval -> ClanNotFound
+#[tokio::test]
+async fn approve_clan_deleted_before_approval() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(None));  // Clan no longer exists
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: Uuid::new_v4() };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// Reject non-existent request -> RequestNotFound
+#[tokio::test]
+async fn reject_non_existent_request_fails() {
+    let request_id = Uuid::new_v4();
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(None));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: Uuid::new_v4() };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::RequestNotFound(_)));
+}
+
+// Reject when the clan was deleted between request creation and rejection -> ClanNotFound
+#[tokio::test]
+async fn reject_clan_deleted_before_rejection() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(None));  // Clan no longer exists
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: Uuid::new_v4() };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// Request to non-existent clan -> ClanNotFound
+#[tokio::test]
+async fn create_join_request_for_deleted_clan() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(None));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// User can have pending requests to multiple different clans simultaneously
+#[tokio::test]
+async fn create_join_request_to_different_clans_allowed() {
+    let clan_a_id = Uuid::new_v4();
+    let _clan_b_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan_a = Clan::with_id(
+        clan_a_id, "Clan A".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(Some(clan_a)));
+    mock_clan_repo.expect_is_user_in_any_clan().return_once(|_| Ok(false));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    // No pending request for (user_id, clan_a_id) pair
+    mock_join_repo.expect_get_pending_request_by_user()
+        .with(mockall::predicate::eq(user_id), mockall::predicate::eq(clan_a_id))
+        .return_once(|_, _| Ok(None));
+    mock_join_repo.expect_create_request().return_once(|_| Ok(()));
+
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id: clan_a_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_ok(), "Should allow request to different clan");
+    assert_eq!(result.unwrap().clan_id, clan_a_id);
+}
+
+// Get pending requests for a non-existent clan -> ClanNotFound
+#[tokio::test]
+async fn get_pending_requests_for_non_existent_clan() {
+    let clan_id = Uuid::new_v4();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id().return_once(|_| Ok(None));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, mock_join_repo);
+    let result = use_case.execute(clan_id, Uuid::new_v4()).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// Approve where the add_member succeeds but update_request_status fails
+// The request is logically approved but the status write fails -> error propagated
+#[tokio::test]
+async fn approve_add_member_fails_after_status_update() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id, "Test Clan".to_string(), leader_id,
+        ClanTier::Bronze, 0, chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id, clan_id, user_id, RequestStatus::Pending,
+        chrono::Utc::now(), chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo.expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo.expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(false));
+    mock_clan_repo.expect_add_member()
+        .return_once(|_| Err(AppError::InternalServer("FK violation: user not found".to_string())));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo.expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    // Status was already updated to Approved
+    mock_join_repo.expect_update_request_status().return_once(|_, _| Ok(()));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+}
+
+// ============================================================
+// Old Edge Cases
 // ============================================================
 
 #[tokio::test]

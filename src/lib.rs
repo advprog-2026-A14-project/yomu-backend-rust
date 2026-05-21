@@ -1,4 +1,7 @@
 // Library root - exports all modules for testing and external use
+// Many items here are consumed by integration tests, not the binary.
+// Rust's cross-target dead code analysis doesn't see test usage from here.
+#![allow(dead_code)]
 
 pub mod config;
 pub mod generated;

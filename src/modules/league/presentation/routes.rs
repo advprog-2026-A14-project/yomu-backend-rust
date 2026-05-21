@@ -12,6 +12,22 @@ pub fn league_routes() -> Router<AppState> {
         .route("/clans/{id}", get(clan_controller::get_clan_detail_handler))
         .route("/clans/{id}", delete(clan_controller::delete_clan_handler))
         .route(
+            "/clans/{id}/join-request",
+            post(clan_controller::create_join_request_handler),
+        )
+        .route(
+            "/clans/{id}/join-requests",
+            get(clan_controller::get_pending_requests_handler),
+        )
+        .route(
+            "/clans/join-requests/{request_id}/approve",
+            post(clan_controller::approve_join_request_handler),
+        )
+        .route(
+            "/clans/join-requests/{request_id}/reject",
+            post(clan_controller::reject_join_request_handler),
+        )
+        .route(
             "/clans/{id}/process-buffs",
             post(clan_controller::process_buffs_handler),
         )

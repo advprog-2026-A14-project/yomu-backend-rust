@@ -6,23 +6,28 @@ use axum::{
 use tracing::instrument;
 
 use crate::AppState;
+use crate::modules::league::application::ApproveJoinRequestUseCase;
 use crate::modules::league::application::CreateClanUseCase;
+use crate::modules::league::application::CreateJoinRequestUseCase;
 use crate::modules::league::application::DeleteClanUseCase;
 use crate::modules::league::application::GetClanDetailUseCase;
+use crate::modules::league::application::GetPendingRequestsUseCase;
 use crate::modules::league::application::JoinClanUseCase;
 use crate::modules::league::application::ProcessBuffsUseCase;
+use crate::modules::league::application::RejectJoinRequestUseCase;
 use crate::modules::league::application::dto::{
-    BuffProcessResultDto, ClanDetailDto, CreateClanDto, DeleteClanDto, JoinClanDto,
-    SeasonResultDto, user_tier_dto::UserTierDto,
+    ApproveRejectDto, BuffProcessResultDto, ClanDetailDto, CreateClanDto, CreateJoinRequestDto,
+    DeleteClanDto, JoinClanDto, JoinRequestResponseDto, SeasonResultDto, user_tier_dto::UserTierDto,
 };
 use crate::modules::league::application::use_cases::GetUserTierUseCase;
 use crate::modules::league::application::use_cases::TriggerSeasonEndUseCase;
 use crate::modules::league::domain::entities::clan::Clan;
 use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::errors::LeagueError;
+use crate::modules::league::infrastructure::database::postgres::clan_buff_postgres_repo::ClanBuffPostgresRepo;
+use crate::modules::league::infrastructure::database::postgres::clan_join_request_postgres_repo::ClanJoinRequestPostgresRepo;
 use crate::modules::league::infrastructure::database::postgres::ClanPostgresRepo;
 use crate::modules::league::infrastructure::database::postgres::SeasonPostgresRepo;
-use crate::modules::league::infrastructure::database::postgres::clan_buff_postgres_repo::ClanBuffPostgresRepo;
 use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRepo;
 use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
@@ -177,6 +182,137 @@ pub async fn delete_clan_handler(
     use_case.execute(clan_id, dto).await?;
 
     Ok(Json(ApiResponse::success("Clan deleted successfully", ())))
+}
+
+/// POST /api/v1/clans/{id}/join-request
+/// Creates a pending join request. Clan leader must approve.
+#[utoipa::path(
+    post,
+    path = "/api/v1/clans/{id}/join-request",
+    params(
+        ("id" = Uuid, Path, description = "Clan ID")
+    ),
+    request_body = CreateJoinRequestDto,
+    responses(
+        (status = 201, description = "Join request created"),
+        (status = 400, description = "Invalid request"),
+        (status = 404, description = "Clan not found"),
+        (status = 409, description = "Duplicate request")
+    ),
+    tag = "clans"
+)]
+#[instrument(skip(state))]
+pub async fn create_join_request_handler(
+    State(state): State<AppState>,
+    Path(clan_id): Path<Uuid>,
+    Json(dto): Json<CreateJoinRequestDto>,
+) -> Result<(StatusCode, Json<ApiResponse<JoinRequestResponseDto>>), LeagueError> {
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let join_repo = ClanJoinRequestPostgresRepo::new(state.db);
+    let use_case = CreateJoinRequestUseCase::new(clan_repo, join_repo);
+
+    let result = use_case.execute(dto).await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::success("Join request created", result)),
+    ))
+}
+
+/// GET /api/v1/clans/{id}/join-requests
+/// Get pending join requests (leader only)
+#[utoipa::path(
+    get,
+    path = "/api/v1/clans/{id}/join-requests",
+    params(
+        ("id" = Uuid, Path, description = "Clan ID"),
+        ("caller_id" = Uuid, Query, description = "Caller user ID for auth")
+    ),
+    responses(
+        (status = 200, description = "Pending requests retrieved"),
+        (status = 403, description = "Only leader can view"),
+        (status = 404, description = "Clan not found")
+    ),
+    tag = "clans"
+)]
+#[instrument(skip(state))]
+pub async fn get_pending_requests_handler(
+    State(state): State<AppState>,
+    Path(clan_id): Path<Uuid>,
+    Json(dto): Json<ApproveRejectDto>,
+) -> Result<Json<ApiResponse<Vec<JoinRequestResponseDto>>>, LeagueError> {
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let join_repo = ClanJoinRequestPostgresRepo::new(state.db);
+    let use_case = GetPendingRequestsUseCase::new(clan_repo, join_repo);
+
+    let requests = use_case.execute(clan_id, dto.caller_id).await?;
+
+    Ok(Json(ApiResponse::success("Pending requests retrieved", requests)))
+}
+
+/// POST /api/v1/clans/join-requests/{request_id}/approve
+/// Approve a pending join request (leader only)
+#[utoipa::path(
+    post,
+    path = "/api/v1/clans/join-requests/{request_id}/approve",
+    params(
+        ("request_id" = Uuid, Path, description = "Join request ID")
+    ),
+    request_body = ApproveRejectDto,
+    responses(
+        (status = 200, description = "Request approved"),
+        (status = 400, description = "User already in clan"),
+        (status = 403, description = "Only leader can approve"),
+        (status = 404, description = "Request not found"),
+        (status = 409, description = "Request already processed")
+    ),
+    tag = "clans"
+)]
+#[instrument(skip(state))]
+pub async fn approve_join_request_handler(
+    State(state): State<AppState>,
+    Path(request_id): Path<Uuid>,
+    Json(dto): Json<ApproveRejectDto>,
+) -> Result<Json<ApiResponse<JoinRequestResponseDto>>, LeagueError> {
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let join_repo = ClanJoinRequestPostgresRepo::new(state.db);
+    let use_case = ApproveJoinRequestUseCase::new(clan_repo, join_repo);
+
+    let result = use_case.execute(request_id, dto).await?;
+
+    Ok(Json(ApiResponse::success("Join request approved", result)))
+}
+
+/// POST /api/v1/clans/join-requests/{request_id}/reject
+/// Reject a pending join request (leader only)
+#[utoipa::path(
+    post,
+    path = "/api/v1/clans/join-requests/{request_id}/reject",
+    params(
+        ("request_id" = Uuid, Path, description = "Join request ID")
+    ),
+    request_body = ApproveRejectDto,
+    responses(
+        (status = 200, description = "Request rejected"),
+        (status = 403, description = "Only leader can reject"),
+        (status = 404, description = "Request not found"),
+        (status = 409, description = "Request already processed")
+    ),
+    tag = "clans"
+)]
+#[instrument(skip(state))]
+pub async fn reject_join_request_handler(
+    State(state): State<AppState>,
+    Path(request_id): Path<Uuid>,
+    Json(dto): Json<ApproveRejectDto>,
+) -> Result<Json<ApiResponse<JoinRequestResponseDto>>, LeagueError> {
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let join_repo = ClanJoinRequestPostgresRepo::new(state.db);
+    let use_case = RejectJoinRequestUseCase::new(clan_repo, join_repo);
+
+    let result = use_case.execute(request_id, dto).await?;
+
+    Ok(Json(ApiResponse::success("Join request rejected", result)))
 }
 
 #[utoipa::path(

@@ -1,8 +1,6 @@
 use crate::modules::league::application::dto::{
     BuffInfo, ClanDetailDto, ClanMemberDto, DebuffInfo,
 };
-use crate::modules::league::domain::entities::clan::Clan;
-use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::errors::LeagueError;
 use crate::modules::league::domain::repositories::ClanBuffRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
