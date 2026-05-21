@@ -313,7 +313,7 @@ mod user_sync_error_tests {
     // Error mapping tests
     #[test]
     fn user_sync_error_user_already_exists_maps_to_409() {
-        let error = UserSyncError::UserAlreadyExists("user_123".to_string());
+        let _ = UserSyncError::UserAlreadyExists("user_123".to_string());
         let response = error.into_response();
         assert_eq!(response.status(), StatusCode::CONFLICT);
     }

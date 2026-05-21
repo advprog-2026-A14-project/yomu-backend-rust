@@ -648,8 +648,6 @@ mod clan_buff_pg_tests {
 
 mod redis_tests {
     use super::*;
-    use redis::AsyncCommands;
-
     async fn setup_redis() -> redis::aio::MultiplexedConnection {
         let client = redis::Client::open(TEST_REDIS_URL).expect("Failed to create Redis client");
         client
@@ -685,7 +683,7 @@ mod redis_tests {
             .await
             .expect("Failed to add score for clan B");
 
-        let results: Vec<(String, i64)> = redis::cmd("ZREVRANGE")
+        let _: Vec<(String, i64)> = redis::cmd("ZREVRANGE")
             .arg(&key_a)
             .arg(0)
             .arg(10)
