@@ -13,7 +13,7 @@ use axum::{Extension, Router, extract::State, middleware, response::Json, routin
 use axum_prometheus::{PrometheusMetricLayer, metrics_exporter_prometheus::PrometheusHandle};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
 use sentry_tower::NewSentryLayer;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -22,7 +22,6 @@ use tower_http::{
     timeout::TimeoutLayer,
     trace::TraceLayer,
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
@@ -170,7 +169,7 @@ async fn async_main(app_config: config::AppConfig) {
         .layer(prometheus_layer)
         .layer(NewSentryLayer::new_from_top())
         .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10)))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
