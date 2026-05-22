@@ -19,4 +19,5 @@ pub trait AchievementRepository: Send + Sync {
     async fn save_user_achievement(&self, user_achievement: &UserAchievement)
     -> Result<(), String>;
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String>;
+    async fn create_achievement(&self, achievement: &Achievement) -> Result<(), String>;
 }
