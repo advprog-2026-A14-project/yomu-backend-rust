@@ -19,6 +19,7 @@ use crate::modules::gamification::application::use_cases::sync_quiz_gamification
 use crate::modules::gamification::infrastructure::database::postgres::{
     PostgresAchievementRepository, PostgresMissionRepository,
 };
+use crate::modules::user_sync::domain::errors::UserSyncError;
 
 #[derive(serde::Serialize, ToSchema)]
 pub struct QuizHistoryApiResponse {
@@ -50,7 +51,11 @@ pub async fn sync_quiz_history_handler(
     let response = use_case
         .execute(dto.clone())
         .await
-        .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        .map_err(|e| match e {
+            UserSyncError::InvalidQuizData(msg) => AppError::BadRequest(msg),
+            UserSyncError::UserNotFound(msg) => AppError::NotFound(msg),
+            other => AppError::InternalServer(other.to_string()),
+    })?;
 
     // Option A: trigger gamification (missions + achievements) after quiz is saved.
     // Fault tolerance §7.2: gamification failure must NOT cause quiz sync to fail.

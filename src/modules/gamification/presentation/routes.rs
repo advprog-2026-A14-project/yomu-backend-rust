@@ -30,8 +30,4 @@ pub fn gamification_public_routes() -> Router<AppState> {
         .route("/admin/missions/daily", post(mission_controller::create_daily_mission))
         .route("/admin/missions/{id}", patch(mission_controller::update_daily_mission))
         .route("/admin/missions/{id}", delete(mission_controller::delete_daily_mission))
-        .route("/admin/achievements", post(achievement_controller::create_achievement))
-        .route("/admin/missions/daily", post(mission_controller::create_daily_mission))
-        .route("/admin/missions/{id}", patch(mission_controller::update_daily_mission))
-        .route("/admin/missions/{id}", delete(mission_controller::delete_daily_mission))
 }
