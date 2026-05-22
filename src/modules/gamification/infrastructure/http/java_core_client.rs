@@ -47,7 +47,10 @@ pub async fn validate_article(
     }
 
     if !status.is_success() {
-        return Err(format!("Java Core membalas status tidak terduga: {}", status));
+        return Err(format!(
+            "Java Core membalas status tidak terduga: {}",
+            status
+        ));
     }
 
     let body: JavaApiResponse = response

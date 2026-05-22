@@ -119,9 +119,7 @@ mod tests {
             .return_once(|_, _| Ok(None));
 
         let use_case = ToggleAchievementProfileVisibilityUseCase::new(Arc::new(mock_repo));
-        let result = use_case
-            .execute(Uuid::new_v4(), Uuid::new_v4(), true)
-            .await;
+        let result = use_case.execute(Uuid::new_v4(), Uuid::new_v4(), true).await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("tidak ditemukan"));
@@ -139,9 +137,7 @@ mod tests {
             .return_once(move |_, _| Ok(Some(ua)));
 
         let use_case = ToggleAchievementProfileVisibilityUseCase::new(Arc::new(mock_repo));
-        let result = use_case
-            .execute(user_id, achievement_id, true)
-            .await;
+        let result = use_case.execute(user_id, achievement_id, true).await;
 
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("sudah selesai"));

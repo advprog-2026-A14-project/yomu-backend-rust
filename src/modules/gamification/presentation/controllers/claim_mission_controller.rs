@@ -1,11 +1,11 @@
-use std::sync::Arc;
 use axum::{
+    Json,
     extract::{Extension, Path, State},
     http::StatusCode,
-    Json,
 };
-use uuid::Uuid;
+use std::sync::Arc;
 use tracing::instrument;
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::modules::gamification::application::use_cases::claim_mission_reward::ClaimMissionRewardUseCase;
@@ -29,7 +29,9 @@ pub async fn claim_mission_reward(
     match use_case.execute(user_id, mission_id).await {
         Ok(()) => Ok((
             StatusCode::OK,
-            Json(ApiResponse::success_without_data("Reward misi harian berhasil diklaim")),
+            Json(ApiResponse::success_without_data(
+                "Reward misi harian berhasil diklaim",
+            )),
         )),
         Err(err_msg) => {
             let status = if err_msg.contains("tidak ditemukan") {

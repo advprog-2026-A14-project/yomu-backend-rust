@@ -152,8 +152,14 @@ mod tests {
 
     #[test]
     fn test_achievement_trigger_type_display() {
-        assert_eq!(AchievementTriggerType::QuizComplete.to_string(), "QuizComplete");
-        assert_eq!(AchievementTriggerType::ReadArticle.to_string(), "ReadArticle");
+        assert_eq!(
+            AchievementTriggerType::QuizComplete.to_string(),
+            "QuizComplete"
+        );
+        assert_eq!(
+            AchievementTriggerType::ReadArticle.to_string(),
+            "ReadArticle"
+        );
         assert_eq!(AchievementTriggerType::DailyLogin.to_string(), "DailyLogin");
     }
 
@@ -168,7 +174,10 @@ mod tests {
             AchievementTriggerType::QuizComplete,
             50,
         );
-        assert_eq!(empty_name.unwrap_err(), "Nama achievement tidak boleh kosong.");
+        assert_eq!(
+            empty_name.unwrap_err(),
+            "Nama achievement tidak boleh kosong."
+        );
 
         let negative_target = Achievement::new(
             id,
@@ -178,6 +187,9 @@ mod tests {
             AchievementTriggerType::QuizComplete,
             50,
         );
-        assert_eq!(negative_target.unwrap_err(), "Target milestone harus lebih dari 0.");
+        assert_eq!(
+            negative_target.unwrap_err(),
+            "Target milestone harus lebih dari 0."
+        );
     }
 }

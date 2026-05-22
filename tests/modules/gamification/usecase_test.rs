@@ -112,12 +112,8 @@ async fn claim_mission_reward_success() {
     mock_repo
         .expect_get_daily_mission_by_id()
         .return_once(move |_| Ok(Some(mission)));
-    mock_repo
-        .expect_save_user_mission()
-        .return_once(|_| Ok(()));
-    mock_repo
-        .expect_add_user_score()
-        .return_once(|_, _| Ok(()));
+    mock_repo.expect_save_user_mission().return_once(|_| Ok(()));
+    mock_repo.expect_add_user_score().return_once(|_, _| Ok(()));
 
     let result = ClaimMissionRewardUseCase::new(Arc::new(mock_repo))
         .execute(user_id, mission_id)
@@ -300,10 +296,8 @@ async fn sync_quiz_achievement_repo_error_propagates() {
         .expect_get_user_achievements()
         .return_once(|_| Err("Achievement DB error".to_string()));
 
-    let use_case = SyncQuizGamificationUseCase::new(
-        Arc::new(mission_repo),
-        Arc::new(achievement_repo),
-    );
+    let use_case =
+        SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
     let result = use_case.execute(make_sync_payload(user_id)).await;
     assert!(result.is_err());
@@ -363,10 +357,8 @@ async fn sync_quiz_new_achievement_auto_enrolled_and_completed() {
         .expect_add_user_score()
         .return_once(|_, _| Ok(()));
 
-    let use_case = SyncQuizGamificationUseCase::new(
-        Arc::new(mission_repo),
-        Arc::new(achievement_repo),
-    );
+    let use_case =
+        SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
     assert!(use_case.execute(make_sync_payload(user_id)).await.is_ok());
 }

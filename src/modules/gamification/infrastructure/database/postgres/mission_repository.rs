@@ -279,5 +279,5 @@ impl MissionRepository for PostgresMissionRepository {
         }
 
         Ok(())
-}
+    }
 }

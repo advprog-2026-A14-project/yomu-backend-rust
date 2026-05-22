@@ -15,7 +15,6 @@ use axum::{Json, extract::State, http::StatusCode};
 use tracing::instrument;
 use utoipa::ToSchema;
 
-
 #[derive(serde::Serialize, ToSchema)]
 pub struct QuizHistoryApiResponse {
     pub user_id: uuid::Uuid,
@@ -52,14 +51,11 @@ pub async fn sync_quiz_history_handler(
     let quiz_repo = QuizHistoryPostgresRepo::new(state.db.clone());
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);
 
-    use_case
-        .execute(dto.clone())
-        .await
-        .map_err(|e| match e {
-            UserSyncError::InvalidQuizData(msg) => AppError::BadRequest(msg),
-            UserSyncError::UserNotFound(msg) => AppError::NotFound(msg),
-            other => AppError::InternalServer(other.to_string()),
-        })?;
+    use_case.execute(dto.clone()).await.map_err(|e| match e {
+        UserSyncError::InvalidQuizData(msg) => AppError::BadRequest(msg),
+        UserSyncError::UserNotFound(msg) => AppError::NotFound(msg),
+        other => AppError::InternalServer(other.to_string()),
+    })?;
 
     let gamification_payload = SyncQuizHistoryRequestDto {
         user_id: dto.user_id,

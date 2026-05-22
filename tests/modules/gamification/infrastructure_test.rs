@@ -64,12 +64,11 @@ mod pg_tests {
         let pool = setup_pg_pool().await;
         let nonexistent_id = Uuid::new_v4();
 
-        let result: Option<(Uuid,)> =
-            sqlx::query_as("SELECT id FROM achievements WHERE id = $1")
-                .bind(nonexistent_id)
-                .fetch_optional(&pool)
-                .await
-                .expect("Query failed");
+        let result: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM achievements WHERE id = $1")
+            .bind(nonexistent_id)
+            .fetch_optional(&pool)
+            .await
+            .expect("Query failed");
 
         assert!(result.is_none());
 
@@ -336,13 +335,12 @@ mod pg_tests {
             .expect("Failed to insert user_achievement");
         }
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM user_achievements WHERE user_id = $1",
-        )
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to count user_achievements");
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM user_achievements WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(&pool)
+                .await
+                .expect("Failed to count user_achievements");
 
         assert_eq!(count.0, 2);
 

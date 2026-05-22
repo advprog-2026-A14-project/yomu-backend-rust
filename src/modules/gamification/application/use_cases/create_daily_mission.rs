@@ -4,9 +4,7 @@ use uuid::Uuid;
 use crate::modules::gamification::application::dto::{
     DailyMissionAdminRequestDto, DailyMissionItemDto,
 };
-use crate::modules::gamification::domain::entities::daily_mission::{
-    DailyMission, MissionType,
-};
+use crate::modules::gamification::domain::entities::daily_mission::{DailyMission, MissionType};
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 
 pub struct CreateDailyMissionUseCase {

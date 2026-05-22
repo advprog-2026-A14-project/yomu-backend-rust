@@ -41,24 +41,29 @@ impl GetUserAchievementsUseCase {
             .map(|ua| ua.achievement_id())
             .collect();
 
-        let masters = self.repository.get_achievements_by_ids(&achievement_ids).await?;
+        let masters = self
+            .repository
+            .get_achievements_by_ids(&achievement_ids)
+            .await?;
         let master_map: HashMap<_, _> = masters.into_iter().map(|a| (a.id(), a)).collect();
 
         let achievements = visible_completed
             .into_iter()
             .filter_map(|ua| {
-                master_map.get(&ua.achievement_id()).map(|master| UserAchievementItemDto {
-                    achievement_id: ua.achievement_id(),
-                    name: master.name().to_string(),
-                    milestone_target: master.milestone_target(),
-                    current_progress: ua.current_progress(),
-                    is_completed: ua.is_completed(),
-                    is_shown_on_profile: ua.is_shown_on_profile(),
-                    completed_at: ua.completed_at(),
-                    achievement_type: master.achievement_type().to_string(),
-                    trigger_type: master.trigger_type().to_string(),
-                    reward_points: master.reward_points(),
-                })
+                master_map
+                    .get(&ua.achievement_id())
+                    .map(|master| UserAchievementItemDto {
+                        achievement_id: ua.achievement_id(),
+                        name: master.name().to_string(),
+                        milestone_target: master.milestone_target(),
+                        current_progress: ua.current_progress(),
+                        is_completed: ua.is_completed(),
+                        is_shown_on_profile: ua.is_shown_on_profile(),
+                        completed_at: ua.completed_at(),
+                        achievement_type: master.achievement_type().to_string(),
+                        trigger_type: master.trigger_type().to_string(),
+                        reward_points: master.reward_points(),
+                    })
             })
             .collect();
 

@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, State, Path},
-    http::StatusCode,
     Json,
+    extract::{Extension, Path, State},
+    http::StatusCode,
 };
 
 use crate::AppState;
+use crate::modules::gamification::application::dto::{
+    DailyMissionAdminRequestDto, DailyMissionItemDto, DailyMissionsResponseDto,
+};
 use crate::modules::gamification::application::use_cases::{
     CreateDailyMissionUseCase, DeleteDailyMissionUseCase, GetDailyMissionsUseCase,
     UpdateDailyMissionUseCase,
@@ -15,9 +18,6 @@ use crate::modules::gamification::infrastructure::database::postgres::PostgresMi
 use crate::shared::domain::base_error::AppError;
 use crate::shared::infrastructure::auth::claims::AuthenticatedUser;
 use crate::shared::utils::response::ApiResponse;
-use crate::modules::gamification::application::dto::{
-    DailyMissionAdminRequestDto, DailyMissionItemDto, DailyMissionsResponseDto,
-};
 
 use uuid::Uuid;
 
@@ -38,7 +38,10 @@ pub async fn get_daily_missions(
 
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::success("Daftar misi harian berhasil diambil", data)),
+        Json(ApiResponse::success(
+            "Daftar misi harian berhasil diambil",
+            data,
+        )),
     ))
 }
 
@@ -52,10 +55,7 @@ pub async fn create_daily_mission(
     let mission_repo = Arc::new(PostgresMissionRepository::new(state.db.clone()));
     let use_case = CreateDailyMissionUseCase::new(mission_repo);
 
-    let data = use_case
-        .execute(body)
-        .await
-        .map_err(map_mission_error)?;
+    let data = use_case.execute(body).await.map_err(map_mission_error)?;
 
     Ok((
         StatusCode::CREATED,
@@ -81,7 +81,10 @@ pub async fn update_daily_mission(
 
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::success("Misi harian berhasil diperbarui", data)),
+        Json(ApiResponse::success(
+            "Misi harian berhasil diperbarui",
+            data,
+        )),
     ))
 }
 

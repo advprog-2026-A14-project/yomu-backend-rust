@@ -13,10 +13,7 @@ impl DeleteDailyMissionUseCase {
     }
 
     pub async fn execute(&self, mission_id: Uuid) -> Result<(), String> {
-        let existing = self
-            .repository
-            .get_daily_mission_by_id(mission_id)
-            .await?;
+        let existing = self.repository.get_daily_mission_by_id(mission_id).await?;
 
         if existing.is_none() {
             return Err("Data misi harian tidak ditemukan di sistem.".to_string());

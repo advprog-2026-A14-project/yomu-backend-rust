@@ -37,7 +37,7 @@ impl CreateAchievementUseCase {
                 return Err(format!(
                     "Tipe trigger achievement tidak valid: {}. Gunakan: QuizComplete, ReadArticle, DailyLogin.",
                     other
-                ))
+                ));
             }
         };
 

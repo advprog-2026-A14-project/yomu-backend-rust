@@ -88,7 +88,12 @@ impl SyncQuizGamificationUseCase {
         // since completing a quiz means the user has read the article.
         let read_missions: Vec<_> = active_missions
             .into_iter()
-            .filter(|m| matches!(m.mission_type(), MissionType::ReadArticle | MissionType::Quiz))
+            .filter(|m| {
+                matches!(
+                    m.mission_type(),
+                    MissionType::ReadArticle | MissionType::Quiz
+                )
+            })
             .collect();
 
         if !read_missions.is_empty() {
@@ -208,7 +213,7 @@ mod tests {
         AchievementTriggerType, AchievementType,
     };
     use axum::extract::connect_info::ResponseFuture;
-use chrono::NaiveDate;
+    use chrono::NaiveDate;
     use uuid::Uuid;
 
     use crate::modules::gamification::domain::repositories::achievement_repository::MockAchievementRepository;
@@ -252,7 +257,7 @@ use chrono::NaiveDate;
             .return_once(|_| Ok(vec![]));
         repo.expect_get_all_achievements()
             .return_once(|| Ok(vec![]));
-        repo 
+        repo
     }
 
     /// User already tracked; masters returned from get_all_achievements.
@@ -414,10 +419,8 @@ use chrono::NaiveDate;
         user_achievement.add_progress(1, 1, Utc::now());
 
         // Already completed — loop skips; no save/add_score expected
-        let achievement_repo = mock_achievement_repo_with_progress(
-            vec![user_achievement],
-            vec![achievement],
-        );
+        let achievement_repo =
+            mock_achievement_repo_with_progress(vec![user_achievement], vec![achievement]);
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));

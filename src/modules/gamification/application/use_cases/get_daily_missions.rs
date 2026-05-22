@@ -1,6 +1,6 @@
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
-use chrono::Utc;
 use uuid::Uuid;
 
 use crate::modules::gamification::application::dto::{

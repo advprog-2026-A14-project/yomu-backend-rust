@@ -4,9 +4,7 @@ use uuid::Uuid;
 use crate::modules::gamification::application::dto::{
     DailyMissionAdminRequestDto, DailyMissionItemDto,
 };
-use crate::modules::gamification::domain::entities::daily_mission::{
-    DailyMission, MissionType,
-};
+use crate::modules::gamification::domain::entities::daily_mission::{DailyMission, MissionType};
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 
 pub struct UpdateDailyMissionUseCase {
@@ -23,10 +21,7 @@ impl UpdateDailyMissionUseCase {
         mission_id: Uuid,
         dto: DailyMissionAdminRequestDto,
     ) -> Result<DailyMissionItemDto, String> {
-        let existing = self
-            .repository
-            .get_daily_mission_by_id(mission_id)
-            .await?;
+        let existing = self.repository.get_daily_mission_by_id(mission_id).await?;
 
         if existing.is_none() {
             return Err("Data misi harian tidak ditemukan di sistem.".to_string());

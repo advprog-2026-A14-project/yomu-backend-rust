@@ -1,24 +1,24 @@
 use std::sync::Arc;
 
 use axum::{
+    Json,
     extract::{Extension, Path, State},
     http::StatusCode,
-    Json,
 };
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::modules::gamification::application::dto::{
-    ToggleProfileVisibilityRequestDto, ToggleProfileVisibilityResponseDto,
-    UserAchievementsResponseDto, CreateAchievementRequestDto, CreateAchievementResponseDto,
+    CreateAchievementRequestDto, CreateAchievementResponseDto, ToggleProfileVisibilityRequestDto,
+    ToggleProfileVisibilityResponseDto, UserAchievementsResponseDto,
 };
+use crate::modules::gamification::application::use_cases::create_achievement::CreateAchievementUseCase;
 use crate::modules::gamification::application::use_cases::get_user_achievements::GetUserAchievementsUseCase;
 use crate::modules::gamification::application::use_cases::toggle_achievement_profile_visibility::ToggleAchievementProfileVisibilityUseCase;
 use crate::modules::gamification::infrastructure::database::postgres::PostgresAchievementRepository;
 use crate::shared::domain::base_error::AppError;
 use crate::shared::infrastructure::auth::claims::AuthenticatedUser;
 use crate::shared::utils::response::ApiResponse;
-use crate::modules::gamification::application::use_cases::create_achievement::CreateAchievementUseCase;  
 
 pub async fn get_user_achievements(
     State(state): State<AppState>,
@@ -40,7 +40,10 @@ pub async fn get_user_achievements(
 
     Ok((
         StatusCode::OK,
-        Json(ApiResponse::success("Daftar pencapaian pengguna berhasil diambil", data)),
+        Json(ApiResponse::success(
+            "Daftar pencapaian pengguna berhasil diambil",
+            data,
+        )),
     ))
 }
 
@@ -49,7 +52,13 @@ pub async fn toggle_achievement_profile_visibility(
     Path((user_id, achievement_id)): Path<(Uuid, Uuid)>,
     Extension(auth_user): Extension<AuthenticatedUser>,
     Json(body): Json<ToggleProfileVisibilityRequestDto>,
-) -> Result<(StatusCode, Json<ApiResponse<ToggleProfileVisibilityResponseDto>>), AppError> {
+) -> Result<
+    (
+        StatusCode,
+        Json<ApiResponse<ToggleProfileVisibilityResponseDto>>,
+    ),
+    AppError,
+> {
     let auth_user_id = Uuid::parse_str(&auth_user.user_id)
         .map_err(|_| AppError::Unauthorized("Invalid user_id in token".into()))?;
 
@@ -100,20 +109,17 @@ pub async fn create_achievement(
     let achievement_repo = Arc::new(PostgresAchievementRepository::new(state.db.clone()));
     let use_case = CreateAchievementUseCase::new(achievement_repo);
 
-    let data = use_case
-        .execute(body)
-        .await
-        .map_err(|err_msg| {
-            if err_msg.contains("tidak boleh")
-                || err_msg.contains("harus")
-                || err_msg.contains("invalid")
-                || err_msg.contains("tidak valid")
-            {
-                AppError::BadRequest(err_msg)
-            } else {
-                AppError::InternalServer(err_msg)
-            }
-        })?;
+    let data = use_case.execute(body).await.map_err(|err_msg| {
+        if err_msg.contains("tidak boleh")
+            || err_msg.contains("harus")
+            || err_msg.contains("invalid")
+            || err_msg.contains("tidak valid")
+        {
+            AppError::BadRequest(err_msg)
+        } else {
+            AppError::InternalServer(err_msg)
+        }
+    })?;
 
     Ok((
         StatusCode::CREATED,
