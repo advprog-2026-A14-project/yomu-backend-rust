@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, name, milestone_target, achievement_type, reward_points \n            FROM achievements \n            WHERE id = $1\n            ",
+  "query": "\n            SELECT id, name, milestone_target, achievement_type, trigger_type, reward_points \n            FROM achievements\n            ",
   "describe": {
     "columns": [
       {
@@ -25,16 +25,20 @@
       },
       {
         "ordinal": 4,
+        "name": "trigger_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
         "name": "reward_points",
         "type_info": "Int4"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -42,5 +46,5 @@
       false
     ]
   },
-  "hash": "457a0617a6b7f11c74b76362d18c59c6b588e0f81e7010e2772e4c672765cee4"
+  "hash": "f019ab2b2d35b4f7849c1740681a91af09e4a727f5f43618f13f167ea8501ca0"
 }

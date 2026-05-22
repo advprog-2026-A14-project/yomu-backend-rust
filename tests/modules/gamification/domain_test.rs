@@ -3,7 +3,7 @@ mod achievement_test {
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
     use yomu_backend_rust::modules::gamification::domain::entities::{
-        achievement::{Achievement, AchievementType},
+        achievement::{Achievement, AchievementTriggerType, AchievementType},
         daily_mission::DailyMission,
         user_achievement::UserAchievement,
         user_mission::UserMission,
@@ -17,6 +17,7 @@ mod achievement_test {
             "Tes Achievement".to_string(),
             5,
             AchievementType::Rare,
+            AchievementTriggerType::QuizComplete,
             150,
         )
         .expect("Gagal membuat Achievement valid");

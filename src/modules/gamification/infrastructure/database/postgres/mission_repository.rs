@@ -118,14 +118,16 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String> {
+        // UPSERT ensures the row exists even if user_sync only created shadow_users.
         sqlx::query!(
             r#"
-            UPDATE engine_users 
-            SET total_score = total_score + $1 
-            WHERE user_id = $2
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id)
+            DO UPDATE SET total_score = engine_users.total_score + EXCLUDED.total_score
             "#,
-            points,
-            user_id
+            user_id,
+            points
         )
         .execute(&self.pool)
         .await
