@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::entities::achievement::Achievement;
+use crate::modules::gamification::domain::entities::achievement::AchievementTriggerType;
 use crate::modules::gamification::domain::entities::daily_mission::DailyMission;
 use crate::modules::gamification::domain::entities::daily_mission::MissionType;
 use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
@@ -39,9 +40,11 @@ impl SyncQuizGamificationUseCase {
 
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
 
+        // Both ReadArticle and Quiz mission types are triggered by quiz completion,
+        // since completing a quiz means the user has read the article.
         let read_missions: Vec<_> = active_missions
             .into_iter()
-            .filter(|m| matches!(m.mission_type(), MissionType::ReadArticle))
+            .filter(|m| matches!(m.mission_type(), MissionType::ReadArticle | MissionType::Quiz))
             .collect();
 
         if !read_missions.is_empty() {
@@ -110,6 +113,17 @@ impl SyncQuizGamificationUseCase {
             }
 
             if let Some(achievement_master) = achievement_map.get(&user_ach.achievement_id()) {
+                // Only increment achievements whose trigger matches this quiz-completion event.
+                // DailyLogin achievements are never incremented here.
+                let triggered_by_quiz = matches!(
+                    achievement_master.trigger_type(),
+                    AchievementTriggerType::QuizComplete | AchievementTriggerType::ReadArticle
+                );
+
+                if !triggered_by_quiz {
+                    continue;
+                }
+
                 let mut user_ach = user_ach.clone();
                 let reward_points = achievement_master.reward_points();
 
@@ -146,7 +160,9 @@ impl SyncQuizGamificationUseCase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::gamification::domain::entities::achievement::AchievementType;
+    use crate::modules::gamification::domain::entities::achievement::{
+        AchievementTriggerType, AchievementType,
+    };
     use axum::extract::connect_info::ResponseFuture;
 use chrono::NaiveDate;
     use uuid::Uuid;
@@ -170,6 +186,7 @@ use chrono::NaiveDate;
             name.to_string(),
             target,
             AchievementType::Common,
+            AchievementTriggerType::QuizComplete,
             reward,
         )
         .unwrap()

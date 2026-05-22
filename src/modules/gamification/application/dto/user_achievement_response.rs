@@ -12,6 +12,7 @@ pub struct UserAchievementItemDto {
     pub is_shown_on_profile: bool,
     pub completed_at: Option<DateTime<Utc>>,
     pub achievement_type: String,
+    pub trigger_type: String,
     pub reward_points: i32,
 }
 

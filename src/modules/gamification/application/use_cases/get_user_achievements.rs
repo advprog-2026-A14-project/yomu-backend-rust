@@ -56,6 +56,7 @@ impl GetUserAchievementsUseCase {
                     is_shown_on_profile: ua.is_shown_on_profile(),
                     completed_at: ua.completed_at(),
                     achievement_type: master.achievement_type().to_string(),
+                    trigger_type: master.trigger_type().to_string(),
                     reward_points: master.reward_points(),
                 })
             })
