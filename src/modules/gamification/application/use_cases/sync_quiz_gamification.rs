@@ -3,6 +3,7 @@ use futures::FutureExt;
 use futures::future::join_all;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::instrument;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::domain::entities::achievement::Achievement;
@@ -35,6 +36,7 @@ impl SyncQuizGamificationUseCase {
     ///
     /// For each active daily mission containing "baca" (read), increments user progress.
     /// For each achievement, adds progress and grants reward points upon completion.
+    #[instrument(skip(self))]
     pub async fn execute(&self, payload: SyncQuizHistoryRequestDto) -> Result<(), String> {
         let now = Utc::now();
         let today = now.naive_utc().date();

@@ -39,6 +39,10 @@ pub async fn jwt_auth_layer(
 
     let mut validation = Validation::new(Algorithm::HS256);
     validation.set_required_spec_claims(&["exp", "sub"]);
+    // Java has started issuing tokens with HS512 (not just HS256).
+    // Allow both so existing HS256 tokens continue to work.
+    validation.algorithms = vec![Algorithm::HS256, Algorithm::HS512];
+    validation.validate_aud = false;
 
     let token_data = decode::<Claims>(
         token,

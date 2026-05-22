@@ -1,0 +1,30 @@
+name: Trigger VPS Deploy
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+    branches:
+      - main
+      - staging
+
+jobs:
+  dispatch:
+    name: Trigger yomu-infra Deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Repository Dispatch to yomu-infra
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.INFRA_DISPATCH_TOKEN }}
+          repository: advprog-2026-A14-project/yomu-infra
+          event-type: deploy-trigger
+          client-payload: |
+            {
+              "service": "yomu-backend-rust",
+              "image_tag": "${{ github.ref_name }}",
+              "sha": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}"
+            }

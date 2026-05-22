@@ -13,16 +13,17 @@ use axum::{Extension, Router, extract::State, middleware, response::Json, routin
 use axum_prometheus::{PrometheusMetricLayer, metrics_exporter_prometheus::PrometheusHandle};
 use axum_tracing_opentelemetry::middleware::OtelAxumLayer;
 use sentry_tower::NewSentryLayer;
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
     timeout::TimeoutLayer,
-    trace::TraceLayer,
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
@@ -64,6 +65,7 @@ async fn health_check(
         version: env!("CARGO_PKG_VERSION").to_string(),
         postgres: postgres_status,
         redis: redis_status,
+        grpc: "running!".to_string(),
     };
 
     let response = ApiResponse::success("Server is running well", health_data);
@@ -94,6 +96,7 @@ async fn metrics_handler(
 }
 
 fn main() {
+    eprintln!("DEBUG: main() starting...");
     let _sentry = sentry::init(sentry::ClientOptions {
         dsn: std::env::var("SENTRY_DSN")
             .ok()
@@ -107,7 +110,10 @@ fn main() {
         ..Default::default()
     });
 
+    eprintln!("DEBUG: sentry init done");
+
     let _log_guard = init_logging(None);
+    eprintln!("DEBUG: logging init done");
 
     tracing::info!("Starting Yomu Engine Rust...");
 
@@ -116,7 +122,9 @@ fn main() {
         .build()
         .unwrap();
 
+    eprintln!("DEBUG: tokio runtime built, blocking on async...");
     rt.block_on(async_main_internal());
+    eprintln!("DEBUG: async_main_internal returned, exiting");
 }
 
 async fn async_main_internal() {
@@ -163,8 +171,15 @@ async fn async_main(app_config: config::AppConfig) {
         .layer(CompressionLayer::new())
         .layer(prometheus_layer)
         .layer(NewSentryLayer::new_from_top())
-        .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
+        .layer(TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(10),
+        ))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
@@ -217,6 +232,11 @@ async fn async_main(app_config: config::AppConfig) {
         );
     let league_svc = modules::league::presentation::grpc::league_handler::LeagueGrpcHandler::new(
         redis_pool.clone(),
+        db_pool.clone(),
+    );
+    let health_svc = shared::presentation::grpc::health_handler::GrpcHealthHandler::new(
+        db_pool.clone(),
+        redis_pool.clone(),
     );
 
     let grpc_router = tonic::transport::Server::builder()
@@ -232,6 +252,9 @@ async fn async_main(app_config: config::AppConfig) {
         )
         .add_service(
             crate::generated::league::league_service_server::LeagueServiceServer::new(league_svc),
+        )
+        .add_service(
+            crate::generated::health::health_service_server::HealthServiceServer::new(health_svc),
         );
 
     let http_server = tokio::spawn(async move {

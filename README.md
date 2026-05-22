@@ -1755,3 +1755,7 @@ graph TB
     Utoipa --> Swagger
     Tower-http --> Tower
 ```
+
+## Health Check Endpoint
+
+The `/health` endpoint returns the overall service health including PostgreSQL, Redis, and gRPC status.

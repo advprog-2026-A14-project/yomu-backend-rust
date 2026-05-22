@@ -201,6 +201,69 @@ impl ClanRepository for ClanPostgresRepo {
 
         Ok(())
     }
+
+    /// Deletes a clan by ID. Members are cascaded via FK constraint.
+    async fn delete_clan(&self, clan_id: Uuid) -> Result<(), AppError> {
+        sqlx::query("DELETE FROM clans WHERE id = $1")
+            .bind(clan_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        Ok(())
+    }
+
+    async fn get_leaders_by_clan_ids(
+        &self,
+        clan_ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, Uuid>, AppError> {
+        if clan_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let rows = sqlx::query("SELECT id, leader_id FROM clans WHERE id = ANY($1)")
+            .bind(clan_ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        let map: std::collections::HashMap<Uuid, Uuid> = rows
+            .iter()
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                let leader_id: Uuid = row.get("leader_id");
+                (id, leader_id)
+            })
+            .collect();
+
+        Ok(map)
+    }
+
+    async fn get_clan_names_by_ids(
+        &self,
+        clan_ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, String>, AppError> {
+        if clan_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let rows = sqlx::query("SELECT id, name FROM clans WHERE id = ANY($1)")
+            .bind(clan_ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+        let map: std::collections::HashMap<Uuid, String> = rows
+            .iter()
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                let name: String = row.get("name");
+                (id, name)
+            })
+            .collect();
+
+        Ok(map)
+    }
 }
 
 // Helper struct for sqlx::query_as!

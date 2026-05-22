@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use uuid::Uuid;
+use tracing::instrument;
 
 use crate::AppState;
 use crate::modules::gamification::application::use_cases::claim_mission_reward::ClaimMissionRewardUseCase;
@@ -13,6 +14,7 @@ use crate::shared::domain::base_error::AppError;
 use crate::shared::infrastructure::auth::claims::AuthenticatedUser;
 use crate::shared::utils::response::ApiResponse;
 
+#[instrument(skip(state))]
 pub async fn claim_mission_reward(
     State(state): State<AppState>,
     Path(mission_id): Path<Uuid>,

@@ -12,6 +12,16 @@ use crate::{
     shared::utils::response::ApiResponse,
 };
 use axum::{Json, extract::State, http::StatusCode};
+use tracing::instrument;
+use utoipa::ToSchema;
+
+
+#[derive(serde::Serialize, ToSchema)]
+pub struct QuizHistoryApiResponse {
+    pub user_id: uuid::Uuid,
+    pub missions_updated: i32,
+    pub message: String,
+}
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::application::use_cases::sync_quiz_gamification::SyncQuizGamificationUseCase;
@@ -32,10 +42,12 @@ use crate::modules::user_sync::domain::errors::UserSyncError;
     ),
     tag = "User Sync"
 )]
+#[instrument(skip(state))]
 pub async fn sync_quiz_history_handler(
     State(state): State<AppState>,
     Json(dto): Json<QuizHistoryRequestDto>,
-) -> Result<(StatusCode, Json<ApiResponse<()>>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<QuizHistoryApiResponse>>), AppError> {
+    tracing::info!(user_id = %dto.user_id, "Handling sync quiz history");
     let user_repo = UserPostgresRepo::new(state.db.clone());
     let quiz_repo = QuizHistoryPostgresRepo::new(state.db.clone());
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);

@@ -18,4 +18,13 @@ pub trait ClanRepository: Send + Sync {
         user_id: Uuid,
     ) -> Result<Option<(Uuid, String, ClanTier)>, AppError>;
     async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
+    async fn delete_clan(&self, clan_id: Uuid) -> Result<(), AppError>;
+    async fn get_leaders_by_clan_ids(
+        &self,
+        clan_ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, Uuid>, AppError>;
+    async fn get_clan_names_by_ids(
+        &self,
+        clan_ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, String>, AppError>;
 }

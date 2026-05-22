@@ -28,10 +28,6 @@ mod pg_tests {
             .bind(user_id)
             .execute(pool)
             .await;
-        let _ = sqlx::query("DELETE FROM shadow_users WHERE user_id = $1")
-            .bind(user_id)
-            .execute(pool)
-            .await;
         let _ = sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
             .bind(user_id)
             .execute(pool)

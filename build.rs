@@ -12,6 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 proto_dir.join("usersync.proto"),
                 proto_dir.join("quizsync.proto"),
                 proto_dir.join("league.proto"),
+                proto_dir.join("health.proto"),
             ],
             &[&proto_dir],
         )?;

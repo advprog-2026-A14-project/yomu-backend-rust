@@ -7,14 +7,17 @@ use axum::{
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum UserSyncError {
     #[error("User already exists: {0}")]
+    #[allow(dead_code)]
     UserAlreadyExists(String),
 
     #[error("User not found: {0}")]
     UserNotFound(String),
 
     #[error("Sync failed: {0}")]
+    #[allow(dead_code)]
     SyncFailed(String),
 
     #[error("Database error: {0}")]
@@ -24,6 +27,7 @@ pub enum UserSyncError {
     InvalidQuizData(String),
 
     #[error("Validation error: {0}")]
+    #[allow(dead_code)]
     ValidationError(String),
 }
 

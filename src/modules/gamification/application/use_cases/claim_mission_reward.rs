@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
@@ -16,6 +17,7 @@ impl ClaimMissionRewardUseCase {
     ///
     /// Validates user has sufficient progress, then marks reward as claimed
     /// and adds reward points to user's total score.
+    #[instrument(skip(self))]
     pub async fn execute(&self, user_id: Uuid, mission_id: Uuid) -> Result<(), String> {
         let mut user_mission = self
             .repository

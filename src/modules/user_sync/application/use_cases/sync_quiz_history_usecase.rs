@@ -4,6 +4,7 @@ use crate::modules::user_sync::domain::entities::quiz_history::QuizHistory;
 use crate::modules::user_sync::domain::errors::UserSyncError;
 use crate::modules::user_sync::domain::repositories::QuizHistoryRepository;
 use crate::modules::user_sync::domain::repositories::UserRepository;
+use tracing::instrument;
 
 pub struct SyncQuizHistoryUseCase<U: UserRepository, Q: QuizHistoryRepository> {
     user_repo: U,
@@ -18,10 +19,12 @@ impl<U: UserRepository, Q: QuizHistoryRepository> SyncQuizHistoryUseCase<U, Q> {
         }
     }
 
+    #[instrument(skip(self))]
     pub async fn execute(
         &self,
         dto: QuizHistoryRequestDto,
     ) -> Result<QuizHistoryResponseDto, UserSyncError> {
+        tracing::info!(user_id = %dto.user_id, score = %dto.score, "Executing sync quiz history");
         if dto.score < 0 {
             return Err(UserSyncError::InvalidQuizData(format!(
                 "Score tidak boleh negatif: {}",
