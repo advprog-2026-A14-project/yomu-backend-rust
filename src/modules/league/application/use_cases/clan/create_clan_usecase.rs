@@ -19,6 +19,8 @@ impl<R: ClanRepository, L: LeaderboardCache> CreateClanUseCase<R, L> {
 
     #[instrument(skip(self))]
     pub async fn execute(&self, dto: CreateClanDto) -> Result<Clan, AppError> {
+        self.repo.ensure_user_exists(dto.leader_id).await?;
+
         if self.repo.is_user_in_any_clan(dto.leader_id).await? {
             return Err(AppError::BadRequest(
                 "User is already in a clan".to_string(),
