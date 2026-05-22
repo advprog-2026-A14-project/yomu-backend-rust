@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U yomu"]
+      test: ["CMD-SHELL", "pg_isready -U yomu -d yomu_engine"]
       interval: 10s
       timeout: 5s
       retries: 10
