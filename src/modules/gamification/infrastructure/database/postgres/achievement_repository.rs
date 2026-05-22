@@ -238,4 +238,23 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         Ok(achievements)
     }
+
+    async fn create_achievement(&self, achievement: &Achievement) -> Result<(), String> {
+        sqlx::query!(
+            r#"
+            INSERT INTO achievements (id, name, milestone_target, achievement_type, reward_points)
+            VALUES ($1, $2, $3, $4, $5)
+            "#,
+            achievement.id(),
+            achievement.name(),
+            achievement.milestone_target(),
+            achievement.achievement_type().to_string(),
+            achievement.reward_points()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal membuat achievement: {}", e))?;
+
+        Ok(())
+    }
 }

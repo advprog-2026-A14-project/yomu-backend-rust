@@ -196,4 +196,24 @@ impl MissionRepository for PostgresMissionRepository {
             None => Ok(None),
         }
     }
+
+    async fn create_daily_mission(&self, mission: &DailyMission) -> Result<(), String> {
+        sqlx::query!(
+            r#"
+            INSERT INTO daily_missions (id, description, target_count, date, reward_points, mission_type)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+            mission.id(),
+            mission.description(),
+            mission.target_count(),
+            mission.date(),
+            mission.reward_points(),
+            format!("{:?}", mission.mission_type())
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal membuat misi harian: {}", e))?;
+
+        Ok(())
+    }
 }
