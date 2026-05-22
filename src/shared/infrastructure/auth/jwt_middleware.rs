@@ -39,6 +39,10 @@ pub async fn jwt_auth_layer(
 
     let mut validation = Validation::new(Algorithm::HS256);
     validation.set_required_spec_claims(&["exp", "sub"]);
+    // Java-issued JWTs include `aud: ["yomu-clients"]` which jsonwebtoken v9 validates
+    // by default (validate_aud=true + aud=None = reject). Disable to match Rust's
+    // actual requirements (only sub + exp checked, aud is informational only).
+    validation.validate_aud = false;
 
     let token_data = decode::<Claims>(
         token,
