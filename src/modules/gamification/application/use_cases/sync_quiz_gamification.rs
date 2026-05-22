@@ -75,22 +75,29 @@ impl SyncQuizGamificationUseCase {
             join_all(save_futures).await;
         }
 
-        let user_achievements = self
+        let mut user_achievements = self
             .achievement_repo
             .get_user_achievements(payload.user_id)
             .await?;
 
-        let relevant_achievement_ids: Vec<_> = user_achievements
+        let all_achievements = self.achievement_repo.get_all_achievements().await?;
+
+        let tracked_ids: std::collections::HashSet<_> = user_achievements
             .iter()
             .map(|ua| ua.achievement_id())
             .collect();
 
-        let achievements = self
-            .achievement_repo
-            .get_achievements_by_ids(&relevant_achievement_ids)
-            .await?;
+        for achievement in &all_achievements {
+            if !tracked_ids.contains(&achievement.id()) {
+                let new_entry = UserAchievement::new(payload.user_id, achievement.id());
+                self.achievement_repo
+                    .save_user_achievement(&new_entry)
+                    .await?;
+                user_achievements.push(new_entry);
+            }
+        }
 
-        let achievement_map: HashMap<_, _> = achievements
+        let achievement_map: HashMap<_, _> = all_achievements
             .into_iter()
             .map(|ach| (ach.id(), ach))
             .collect();
