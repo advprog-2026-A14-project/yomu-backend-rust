@@ -1,3 +1,4 @@
+use tracing::instrument;
 use tonic::{Request, Response, Status};
 
 use crate::generated::usersync::{
@@ -8,6 +9,7 @@ use crate::modules::user_sync::application::use_cases::sync_new_user_usecase::Sy
 use crate::modules::user_sync::infrastructure::database::postgres::user_postgres_repo::UserPostgresRepo;
 use sqlx::PgPool;
 
+#[derive(Debug)]
 pub struct UserSyncGrpcHandler {
     db: PgPool,
 }
@@ -20,6 +22,7 @@ impl UserSyncGrpcHandler {
 
 #[tonic::async_trait]
 impl UserSyncService for UserSyncGrpcHandler {
+    #[instrument]
     async fn sync_shadow_user(
         &self,
         request: Request<SyncShadowUserRequest>,

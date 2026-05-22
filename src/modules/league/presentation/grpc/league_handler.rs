@@ -1,3 +1,4 @@
+use tracing::instrument;
 use tonic::{Request, Response, Status};
 
 use crate::generated::league::{
@@ -8,6 +9,7 @@ use crate::modules::league::application::use_cases::GetLeaderboardUseCase;
 use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRepo;
 use redis::aio::MultiplexedConnection;
 
+#[derive(Debug)]
 pub struct LeagueGrpcHandler {
     redis: MultiplexedConnection,
 }
@@ -20,6 +22,7 @@ impl LeagueGrpcHandler {
 
 #[tonic::async_trait]
 impl LeagueService for LeagueGrpcHandler {
+    #[instrument]
     async fn get_user_tier(
         &self,
         request: Request<GetUserTierRequest>,
@@ -36,6 +39,7 @@ impl LeagueService for LeagueGrpcHandler {
         }))
     }
 
+    #[instrument]
     async fn get_leaderboard(
         &self,
         request: Request<GetLeaderboardRequest>,
@@ -64,6 +68,7 @@ impl LeagueService for LeagueGrpcHandler {
         }
     }
 
+    #[instrument]
     async fn join_clan(
         &self,
         _request: Request<JoinClanRequest>,

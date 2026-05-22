@@ -1,18 +1,21 @@
 use std::sync::Arc;
 use axum::{extract::State, Json, http::{StatusCode, HeaderMap}};
 use crate::modules::gamification::presentation::routes::GamificationState;
+use tracing::instrument;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 //use crate::modules::gamification::application::use_cases::sync_quiz_gamification::SyncQuizGamificationUseCase;
 use crate::shared::utils::response::ApiResponse; 
 
 // handler POST /api/internal/quiz-history/sync
+#[instrument(skip(state))]
 pub async fn sync_quiz_history(
     State(state): State<Arc<GamificationState>>,
     headers: HeaderMap,
     Json(payload): Json<SyncQuizHistoryRequestDto>,
 ) -> (StatusCode, Json<ApiResponse<()>>) {
 
+    tracing::info!(user_id = %payload.user_id, "Handling sync quiz history");
     let api_key = headers.get("x-api-key").and_then(|v| v.to_str().ok());
     let expected_key = std::env::var("INTERNAL_API_KEY").unwrap_or_else(|_| "secret-key-default".to_string());
 

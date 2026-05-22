@@ -10,6 +10,7 @@ use crate::{
     shared::utils::response::ApiResponse,
 };
 use axum::{Json, extract::State, http::StatusCode};
+use tracing::instrument;
 use utoipa::ToSchema;
 
 #[derive(serde::Serialize, ToSchema)]
@@ -31,10 +32,12 @@ pub struct QuizHistoryApiResponse {
     ),
     tag = "User Sync"
 )]
+#[instrument(skip(state))]
 pub async fn sync_quiz_history_handler(
     State(state): State<AppState>,
     Json(dto): Json<QuizHistoryRequestDto>,
 ) -> Result<(StatusCode, Json<ApiResponse<QuizHistoryApiResponse>>), AppError> {
+    tracing::info!(user_id = %dto.user_id, "Handling sync quiz history");
     let user_repo = UserPostgresRepo::new(state.db.clone());
     let quiz_repo = QuizHistoryPostgresRepo::new(state.db.clone());
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);

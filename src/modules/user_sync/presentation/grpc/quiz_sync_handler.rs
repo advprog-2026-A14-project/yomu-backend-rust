@@ -1,3 +1,4 @@
+use tracing::instrument;
 use tonic::{Request, Response, Status};
 
 use crate::generated::quizsync::{
@@ -9,6 +10,7 @@ use crate::modules::user_sync::infrastructure::database::postgres::quiz_history_
 use crate::modules::user_sync::infrastructure::database::postgres::user_postgres_repo::UserPostgresRepo;
 use sqlx::PgPool;
 
+#[derive(Debug)]
 pub struct QuizSyncGrpcHandler {
     db: PgPool,
 }
@@ -21,6 +23,7 @@ impl QuizSyncGrpcHandler {
 
 #[tonic::async_trait]
 impl QuizSyncService for QuizSyncGrpcHandler {
+    #[instrument]
     async fn sync_quiz_history(
         &self,
         request: Request<SyncQuizHistoryRequest>,
