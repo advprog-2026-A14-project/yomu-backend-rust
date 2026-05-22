@@ -56,6 +56,14 @@ mock! {
         async fn add_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
         async fn delete_clan(&self, clan_id: Uuid) -> Result<(), AppError>;
         async fn get_user_tier_info(&self, user_id: Uuid) -> Result<Option<(Uuid, String, ClanTier)>, AppError>;
+        async fn get_leaders_by_clan_ids(
+            &self,
+            clan_ids: &[Uuid],
+        ) -> Result<std::collections::HashMap<Uuid, Uuid>, AppError>;
+        async fn get_clan_names_by_ids(
+            &self,
+            clan_ids: &[Uuid],
+        ) -> Result<std::collections::HashMap<Uuid, String>, AppError>;
     }
 }
 
@@ -757,17 +765,23 @@ async fn empty_database_get_user_tier() {
 #[tokio::test]
 async fn test_get_leaderboard_success() {
     let tier = "Diamond".to_string();
+    let clan_id_a = Uuid::new_v4();
+    let clan_id_b = Uuid::new_v4();
+    let leader_a = Uuid::new_v4();
+    let leader_b = Uuid::new_v4();
     let entries = vec![
         LeaderboardEntry {
-            clan_id: Uuid::new_v4(),
+            clan_id: clan_id_a,
             clan_name: "Clan A".to_string(),
+            leader_id: Uuid::nil(),
             total_score: 1000,
             tier: tier.clone(),
             rank: 1,
         },
         LeaderboardEntry {
-            clan_id: Uuid::new_v4(),
+            clan_id: clan_id_b,
             clan_name: "Clan B".to_string(),
+            leader_id: Uuid::nil(),
             total_score: 800,
             tier: tier.clone(),
             rank: 2,
@@ -775,7 +789,6 @@ async fn test_get_leaderboard_success() {
     ];
 
     let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
-
     mock_leaderboard
         .expect_get_top_clans()
         .with(
@@ -785,7 +798,35 @@ async fn test_get_leaderboard_success() {
         .return_once(move |_, _| Ok(entries.clone()))
         .once();
 
-    let use_case = GetLeaderboardUseCase::new(mock_leaderboard);
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_leaders_by_clan_ids()
+        .return_once(|ids| {
+            let mut map = std::collections::HashMap::new();
+            if ids.contains(&clan_id_a) {
+                map.insert(clan_id_a, leader_a);
+            }
+            if ids.contains(&clan_id_b) {
+                map.insert(clan_id_b, leader_b);
+            }
+            Ok(map)
+        })
+        .once();
+    mock_clan_repo
+        .expect_get_clan_names_by_ids()
+        .return_once(|ids| {
+            let mut map = std::collections::HashMap::new();
+            if ids.contains(&clan_id_a) {
+                map.insert(clan_id_a, "Clan A".to_string());
+            }
+            if ids.contains(&clan_id_b) {
+                map.insert(clan_id_b, "Clan B".to_string());
+            }
+            Ok(map)
+        })
+        .once();
+
+    let use_case = GetLeaderboardUseCase::new(mock_clan_repo, mock_leaderboard);
 
     let result = use_case.execute(tier.clone()).await;
 

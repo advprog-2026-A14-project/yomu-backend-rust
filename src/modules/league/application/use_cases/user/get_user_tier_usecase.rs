@@ -1,6 +1,7 @@
 use crate::modules::league::application::dto::user_tier_dto::UserTierDto;
 use crate::modules::league::domain::repositories::ClanRepository;
 use crate::shared::domain::base_error::AppError;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct GetUserTierUseCase<R: ClanRepository> {
@@ -12,7 +13,9 @@ impl<R: ClanRepository> GetUserTierUseCase<R> {
         Self { repository }
     }
 
+    #[instrument(skip(self))]
     pub async fn execute(&self, user_id: Uuid) -> Result<UserTierDto, AppError> {
+        tracing::info!(%user_id, "Executing get user tier");
         let tier_info = self.repository.get_user_tier_info(user_id).await?;
 
         match tier_info {

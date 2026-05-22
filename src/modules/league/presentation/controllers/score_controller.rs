@@ -14,6 +14,7 @@ use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRep
 use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
 use serde::Deserialize;
+use tracing::instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -38,13 +39,16 @@ fn default_tier() -> String {
     ),
     tag = "leaderboard"
 )]
+#[instrument(skip(state))]
 pub async fn get_leaderboard_handler(
     State(state): State<AppState>,
     Query(query): Query<LeaderboardQuery>,
 ) -> Result<Response, AppError> {
     let redis_repo = LeaderboardRedisRepo::new(state.redis);
-    let use_case = GetLeaderboardUseCase::new(redis_repo);
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let use_case = GetLeaderboardUseCase::new(clan_repo, redis_repo);
 
+    tracing::info!(tier = %query.tier, "Fetching leaderboard");
     let leaderboard = use_case.execute(query.tier).await?;
 
     let mut response = Json(ApiResponse::success(
@@ -74,10 +78,12 @@ pub async fn get_leaderboard_handler(
     ),
     tag = "clans"
 )]
+#[instrument(skip(state))]
 pub async fn update_score_handler(
     State(state): State<AppState>,
     Path(clan_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ScoreResultDto>>, AppError> {
+    tracing::info!(%clan_id, "Handling update score request");
     let clan_repo = ClanPostgresRepo::new(state.db.clone());
     let buff_repo = ClanBuffPostgresRepo::new(state.db.clone());
     let redis_repo = LeaderboardRedisRepo::new(state.redis);

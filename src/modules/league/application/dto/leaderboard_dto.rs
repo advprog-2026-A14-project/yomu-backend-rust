@@ -6,6 +6,7 @@ use uuid::Uuid;
 pub struct LeaderboardEntry {
     pub clan_id: Uuid,
     pub clan_name: String,
+    pub leader_id: Uuid,
     pub total_score: i64,
     pub tier: String,
     pub rank: usize,

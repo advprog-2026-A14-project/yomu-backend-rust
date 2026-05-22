@@ -17,6 +17,7 @@ impl<R: UserRepository> SyncNewUserUseCase<R> {
         &self,
         dto: crate::modules::user_sync::application::dto::SyncUserRequestDto,
     ) -> Result<ShadowUser, UserSyncError> {
+        tracing::info!(user_id = %dto.user_id, "Executing sync new user");
         if self
             .repository
             .exists_shadow_user(dto.user_id)

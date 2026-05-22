@@ -24,6 +24,7 @@ impl<R: ClanRepository, J: ClanJoinRequestRepository> GetPendingRequestsUseCase<
         clan_id: Uuid,
         caller_id: Uuid,
     ) -> Result<Vec<JoinRequestResponseDto>, LeagueError> {
+        tracing::info!(%clan_id, "Executing get pending requests");
         // Validate clan exists
         let clan = self
             .clan_repo

@@ -1,5 +1,5 @@
-use tracing::instrument;
 use tonic::{Request, Response, Status};
+use tracing::instrument;
 
 use crate::generated::quizsync::{
     SyncQuizHistoryRequest, SyncQuizHistoryResponse, quiz_sync_service_server::QuizSyncService,

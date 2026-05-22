@@ -3,6 +3,7 @@ use crate::modules::league::domain::entities::clan_member::ClanMember;
 use crate::modules::league::domain::entities::clan_member::MemberRole;
 use crate::modules::league::domain::repositories::ClanRepository;
 use crate::shared::domain::base_error::AppError;
+use tracing::instrument;
 
 pub struct JoinClanUseCase<R: ClanRepository> {
     repo: R,
@@ -17,7 +18,9 @@ impl<R: ClanRepository> JoinClanUseCase<R> {
     ///
     /// Validates clan exists and user is not already in any clan.
     /// User is added with Member role (not Leader).
+    #[instrument(skip(self))]
     pub async fn execute(&self, dto: JoinClanDto) -> Result<ClanMember, AppError> {
+        tracing::info!(clan_id = %dto.clan_id, user_id = %dto.user_id, "User attempting to join clan");
         let clan = self.repo.get_clan_by_id(dto.clan_id).await?;
         if clan.is_none() {
             return Err(AppError::NotFound("Clan not found".to_string()));

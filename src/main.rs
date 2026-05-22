@@ -231,6 +231,7 @@ async fn async_main(app_config: config::AppConfig) {
         );
     let league_svc = modules::league::presentation::grpc::league_handler::LeagueGrpcHandler::new(
         redis_pool.clone(),
+        db_pool.clone(),
     );
     let health_svc = shared::presentation::grpc::health_handler::GrpcHealthHandler::new(
         db_pool.clone(),

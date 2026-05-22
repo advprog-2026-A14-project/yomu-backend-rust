@@ -15,6 +15,7 @@ impl<R: ClanBuffRepository> GetClanBuffsUseCase<R> {
 
     #[instrument(skip(self))]
     pub async fn execute(&self, clan_id: Uuid) -> Result<ClanBuffsDto, AppError> {
+        tracing::info!(%clan_id, "Executing get clan buffs");
         let active_buffs = self.repo.get_active_buffs(clan_id).await?;
 
         let mut buffs: Vec<BuffDto> = Vec::new();

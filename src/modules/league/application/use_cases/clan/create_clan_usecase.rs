@@ -37,7 +37,9 @@ impl<R: ClanRepository, L: LeaderboardCache> CreateClanUseCase<R, L> {
             crate::modules::league::domain::entities::clan::ClanTier::Gold => "Gold",
             crate::modules::league::domain::entities::clan::ClanTier::Diamond => "Diamond",
         };
-        self.leaderboard.add_clan_to_tier(clan.id(), tier_str).await?;
+        self.leaderboard
+            .add_clan_to_tier(clan.id(), tier_str)
+            .await?;
 
         Ok(clan)
     }

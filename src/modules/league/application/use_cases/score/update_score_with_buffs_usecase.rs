@@ -7,6 +7,7 @@ use crate::modules::league::domain::repositories::ClanBuffRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
 use crate::modules::league::domain::repositories::LeaderboardCache;
 use crate::shared::domain::base_error::AppError;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct UpdateScoreWithBuffsUseCase<
@@ -30,7 +31,9 @@ impl<R: ClanRepository, B: ClanBuffRepository, L: LeaderboardCache>
         }
     }
 
+    #[instrument(skip(self))]
     pub async fn execute(&self, clan_id: Uuid) -> Result<ScoreResultDto, AppError> {
+        tracing::info!(%clan_id, "Executing update score with buffs");
         let clan = self
             .clan_repo
             .get_clan_by_id(clan_id)
