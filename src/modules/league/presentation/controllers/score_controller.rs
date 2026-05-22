@@ -43,7 +43,8 @@ pub async fn get_leaderboard_handler(
     Query(query): Query<LeaderboardQuery>,
 ) -> Result<Response, AppError> {
     let redis_repo = LeaderboardRedisRepo::new(state.redis);
-    let use_case = GetLeaderboardUseCase::new(redis_repo);
+    let clan_repo = ClanPostgresRepo::new(state.db.clone());
+    let use_case = GetLeaderboardUseCase::new(clan_repo, redis_repo);
 
     let leaderboard = use_case.execute(query.tier).await?;
 

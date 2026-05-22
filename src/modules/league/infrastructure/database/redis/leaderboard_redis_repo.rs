@@ -71,6 +71,7 @@ impl LeaderboardCache for LeaderboardRedisRepo {
                 LeaderboardEntry {
                     clan_id,
                     clan_name: format!("Clan {}", &clan_id_str[..8.min(clan_id_str.len())]),
+                    leader_id: Uuid::nil(),
                     total_score,
                     tier: tier.to_string(),
                     rank: idx + 1,

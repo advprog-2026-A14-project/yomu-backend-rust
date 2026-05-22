@@ -5,16 +5,18 @@ use crate::generated::league::{
     JoinClanRequest, JoinClanResponse, LeaderboardEntry, league_service_server::LeagueService,
 };
 use crate::modules::league::application::use_cases::GetLeaderboardUseCase;
+use crate::modules::league::infrastructure::database::postgres::ClanPostgresRepo;
 use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRepo;
 use redis::aio::MultiplexedConnection;
 
 pub struct LeagueGrpcHandler {
     redis: MultiplexedConnection,
+    db: sqlx::PgPool,
 }
 
 impl LeagueGrpcHandler {
-    pub fn new(redis: MultiplexedConnection) -> Self {
-        Self { redis }
+    pub fn new(redis: MultiplexedConnection, db: sqlx::PgPool) -> Self {
+        Self { redis, db }
     }
 }
 
@@ -41,8 +43,9 @@ impl LeagueService for LeagueGrpcHandler {
         request: Request<GetLeaderboardRequest>,
     ) -> Result<Response<GetLeaderboardResponse>, Status> {
         let req = request.into_inner();
-        let repo = LeaderboardRedisRepo::new(self.redis.clone());
-        let use_case = GetLeaderboardUseCase::new(repo);
+        let redis_repo = LeaderboardRedisRepo::new(self.redis.clone());
+        let clan_repo = ClanPostgresRepo::new(self.db.clone());
+        let use_case = GetLeaderboardUseCase::new(clan_repo, redis_repo);
 
         let result = use_case.execute(req.tier.clone()).await;
 
