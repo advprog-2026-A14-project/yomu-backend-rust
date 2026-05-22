@@ -189,6 +189,7 @@ async fn async_main(app_config: config::AppConfig) {
 
     let api_v1_router = Router::new()
         .merge(modules::league::presentation::routes::league_routes())
+        .merge(modules::gamification::presentation::gamification_public_routes())
         .route_layer(middleware::from_fn_with_state(
             state_for_middleware.clone(),
             jwt_auth_layer,

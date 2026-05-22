@@ -1,0 +1,110 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:18
+    container_name: yomu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yomu
+      POSTGRES_PASSWORD: yomu_password
+      POSTGRES_DB: yomu_engine
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yomu -d yomu_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Redis Cache
+  redis:
+    image: redis:8-alpine
+    container_name: yomu-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: redis-server --appendonly yes
+
+  # Yomu Engine Rust Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yomu-engine
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DATABASE_URL: postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+      REDIS_URL: redis://redis:6379
+      PG_POOL_MAX_CONNECTIONS: ${PG_POOL_MAX_CONNECTIONS:-20}
+      PG_POOL_MIN_CONNECTIONS: ${PG_POOL_MIN_CONNECTIONS:-5}
+      PG_POOL_ACQUIRE_TIMEOUT_SECS: ${PG_POOL_ACQUIRE_TIMEOUT_SECS:-5}
+      PG_POOL_MAX_LIFETIME_SECS: ${PG_POOL_MAX_LIFETIME_SECS:-1800}
+      PG_POOL_IDLE_TIMEOUT_SECS: ${PG_POOL_IDLE_TIMEOUT_SECS:-300}
+      RUST_LOG: ${RUST_LOG:-info}
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-1}
+      JAVA_CORE_URL: ${JAVA_CORE_URL:-http://host.docker.internal:8081}
+      JAVA_CORE_API_KEY: ${JAVA_CORE_API_KEY:-test-key}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Development container with hot reload
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: yomu-engine-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8080
+      DATABASE_URL: postgresql://yomu:yomu_password@postgres:5432/yomu_engine
+      REDIS_URL: redis://redis:6379
+      PG_POOL_MAX_CONNECTIONS: ${PG_POOL_MAX_CONNECTIONS:-20}
+      PG_POOL_MIN_CONNECTIONS: ${PG_POOL_MIN_CONNECTIONS:-5}
+      PG_POOL_ACQUIRE_TIMEOUT_SECS: ${PG_POOL_ACQUIRE_TIMEOUT_SECS:-5}
+      PG_POOL_MAX_LIFETIME_SECS: ${PG_POOL_MAX_LIFETIME_SECS:-1800}
+      PG_POOL_IDLE_TIMEOUT_SECS: ${PG_POOL_IDLE_TIMEOUT_SECS:-300}
+      RUST_LOG: debug
+      RUST_BACKTRACE: 1
+      JAVA_CORE_URL: ${JAVA_CORE_URL:-http://host.docker.internal:8081}
+      JAVA_CORE_API_KEY: ${JAVA_CORE_API_KEY:-test-key}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - cargo_cache:/app/target
+
+volumes:
+  postgres_data:
+  redis_data:
+  cargo_cache:
+
+networks:
+  default:
+    name: yomu-network

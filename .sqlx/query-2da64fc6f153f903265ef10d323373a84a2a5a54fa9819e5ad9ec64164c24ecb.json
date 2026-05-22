@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT user_id, mission_id, current_progress, is_claimed\n            FROM user_missions\n            WHERE user_id = $1 AND mission_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "mission_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "current_progress",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_claimed",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2da64fc6f153f903265ef10d323373a84a2a5a54fa9819e5ad9ec64164c24ecb"
+}

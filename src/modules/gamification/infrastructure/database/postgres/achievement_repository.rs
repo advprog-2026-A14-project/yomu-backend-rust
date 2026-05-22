@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use sqlx::PgPool;
-use std::str::FromStr;
+// use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::modules::gamification::domain::entities::achievement::{
-    Achievement, AchievementType, UserAchievement,
+    Achievement, AchievementTriggerType, AchievementType,
 };
-use crate::modules::gamification::domain::ports::achievement_repository::AchievementRepository;
+use crate::modules::gamification::domain::entities::user_achievement::UserAchievement;
+use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 
 pub struct PostgresAchievementRepository {
     pub pool: PgPool,
@@ -23,7 +24,7 @@ impl AchievementRepository for PostgresAchievementRepository {
     async fn get_achievement_by_id(&self, id: Uuid) -> Result<Option<Achievement>, String> {
         let record = sqlx::query!(
             r#"
-            SELECT id, name, milestone_target, achievement_type, reward_points 
+            SELECT id, name, milestone_target, achievement_type, trigger_type, reward_points 
             FROM achievements 
             WHERE id = $1
             "#,
@@ -35,19 +36,15 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         match record {
             Some(row) => {
-                // Mapping manual string dari database kembali ke Enum Rust
-                let ach_type = match row.achievement_type.as_str() {
-                    "Rare" => AchievementType::Rare,
-                    "Epic" => AchievementType::Epic,
-                    "Legendary" => AchievementType::Legendary,
-                    _ => AchievementType::Common, // Default
-                };
+                let ach_type = parse_achievement_type(&row.achievement_type);
+                let trigger = AchievementTriggerType::from_str(&row.trigger_type);
 
                 let achievement = Achievement::new(
                     row.id,
                     row.name,
                     row.milestone_target,
                     ach_type,
+                    trigger,
                     row.reward_points,
                 )
                 .map_err(|e| e.to_string())?;
@@ -88,10 +85,52 @@ impl AchievementRepository for PostgresAchievementRepository {
         Ok(achievements)
     }
 
+    async fn get_user_achievement(
+        &self,
+        user_id: Uuid,
+        achievement_id: Uuid,
+    ) -> Result<Option<UserAchievement>, String> {
+        let row = sqlx::query!(
+            r#"
+            SELECT user_id, achievement_id, current_progress, is_completed, is_shown_on_profile, completed_at
+            FROM user_achievements
+            WHERE user_id = $1 AND achievement_id = $2
+            "#,
+            user_id,
+            achievement_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_user_achievement): {}", e))?;
+
+        Ok(row.map(|row| {
+            let mut user_ach = UserAchievement::new(row.user_id, row.achievement_id);
+            user_ach.current_progress = row.current_progress;
+            user_ach.is_completed = row.is_completed;
+            user_ach.is_shown_on_profile = row.is_shown_on_profile;
+            user_ach.completed_at = row.completed_at;
+            user_ach
+        }))
+    }
+
     async fn save_user_achievement(
         &self,
         user_achievement: &UserAchievement,
     ) -> Result<(), String> {
+        // Ensure user row exists in engine_users before inserting FK-dependent row.
+        // This guards against the case where user_sync only created a shadow_users row.
+        sqlx::query!(
+            r#"
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, 0)
+            ON CONFLICT (user_id) DO NOTHING
+            "#,
+            user_achievement.user_id()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memastikan engine_users row: {}", e))?;
+
         // UPSERT: Insert jika baru pertama kali dapat progres, Update jika sudah ada
         sqlx::query!(
             r#"
@@ -120,16 +159,17 @@ impl AchievementRepository for PostgresAchievementRepository {
     }
 
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String> {
-        // Query ini persis sama dengan yang ada di mission_repository,
-        // tapi ditaruh di sini agar AchievementUseCase tetap independen.
+        // UPSERT ensures the row exists even if user_sync only created shadow_users.
+        // If the user already exists, their score is incremented atomically.
         sqlx::query!(
             r#"
-            UPDATE engine_users 
-            SET total_score = total_score + $1 
-            WHERE user_id = $2
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id)
+            DO UPDATE SET total_score = engine_users.total_score + EXCLUDED.total_score
             "#,
-            points,
-            user_id
+            user_id,
+            points
         )
         .execute(&self.pool)
         .await
@@ -141,7 +181,7 @@ impl AchievementRepository for PostgresAchievementRepository {
     async fn get_all_achievements(&self) -> Result<Vec<Achievement>, String> {
         let records = sqlx::query!(
             r#"
-            SELECT id, name, milestone_target, achievement_type, reward_points 
+            SELECT id, name, milestone_target, achievement_type, trigger_type, reward_points 
             FROM achievements
             "#
         )
@@ -151,18 +191,15 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         let mut achievements = Vec::new();
         for row in records {
-            let ach_type = match row.achievement_type.as_str() {
-                "Rare" => AchievementType::Rare,
-                "Epic" => AchievementType::Epic,
-                "Legendary" => AchievementType::Legendary,
-                _ => AchievementType::Common,
-            };
+            let ach_type = parse_achievement_type(&row.achievement_type);
+            let trigger = AchievementTriggerType::from_str(&row.trigger_type);
 
             if let Ok(achievement) = Achievement::new(
                 row.id,
                 row.name,
                 row.milestone_target,
                 ach_type,
+                trigger,
                 row.reward_points,
             ) {
                 achievements.push(achievement);
@@ -179,7 +216,7 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         let records = sqlx::query!(
             r#"
-            SELECT id, name, milestone_target, achievement_type, reward_points 
+            SELECT id, name, milestone_target, achievement_type, trigger_type, reward_points 
             FROM achievements 
             WHERE id = ANY($1)
             "#,
@@ -191,18 +228,15 @@ impl AchievementRepository for PostgresAchievementRepository {
 
         let mut achievements = Vec::new();
         for row in records {
-            let ach_type = match row.achievement_type.as_str() {
-                "Rare" => AchievementType::Rare,
-                "Epic" => AchievementType::Epic,
-                "Legendary" => AchievementType::Legendary,
-                _ => AchievementType::Common,
-            };
+            let ach_type = parse_achievement_type(&row.achievement_type);
+            let trigger = AchievementTriggerType::from_str(&row.trigger_type);
 
             if let Ok(achievement) = Achievement::new(
                 row.id,
                 row.name,
                 row.milestone_target,
                 ach_type,
+                trigger,
                 row.reward_points,
             ) {
                 achievements.push(achievement);
@@ -210,5 +244,34 @@ impl AchievementRepository for PostgresAchievementRepository {
         }
 
         Ok(achievements)
+    }
+
+    async fn create_achievement(&self, achievement: &Achievement) -> Result<(), String> {
+        sqlx::query!(
+            r#"
+            INSERT INTO achievements (id, name, milestone_target, achievement_type, trigger_type, reward_points)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+            achievement.id(),
+            achievement.name(),
+            achievement.milestone_target(),
+            achievement.achievement_type().to_string(),
+            achievement.trigger_type().to_string(),
+            achievement.reward_points()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal membuat achievement: {}", e))?;
+
+        Ok(())
+    }
+}
+
+fn parse_achievement_type(s: &str) -> AchievementType {
+    match s {
+        "Rare" => AchievementType::Rare,
+        "Epic" => AchievementType::Epic,
+        "Legendary" => AchievementType::Legendary,
+        _ => AchievementType::Common,
     }
 }

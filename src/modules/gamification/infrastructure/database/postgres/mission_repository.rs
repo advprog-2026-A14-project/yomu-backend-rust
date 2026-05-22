@@ -3,9 +3,9 @@ use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::modules::gamification::domain::entities::daily_mission::MissionType;
-use crate::modules::gamification::domain::entities::mission::{DailyMission, UserMission};
-use crate::modules::gamification::domain::ports::mission_repository::MissionRepository;
+use crate::modules::gamification::domain::entities::daily_mission::{DailyMission, MissionType};
+use crate::modules::gamification::domain::entities::user_mission::UserMission;
+use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
 
 pub struct PostgresMissionRepository {
     pub pool: PgPool,
@@ -83,6 +83,19 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn save_user_mission(&self, user_mission: &UserMission) -> Result<(), String> {
+        // Ensure user row exists in engine_users before inserting FK-dependent row.
+        sqlx::query!(
+            r#"
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, 0)
+            ON CONFLICT (user_id) DO NOTHING
+            "#,
+            user_mission.user_id()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memastikan engine_users row: {}", e))?;
+
         sqlx::query!(
             r#"
             INSERT INTO user_missions (user_id, mission_id, current_progress, is_claimed)
@@ -105,14 +118,16 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String> {
+        // UPSERT ensures the row exists even if user_sync only created shadow_users.
         sqlx::query!(
             r#"
-            UPDATE engine_users 
-            SET total_score = total_score + $1 
-            WHERE user_id = $2
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id)
+            DO UPDATE SET total_score = engine_users.total_score + EXCLUDED.total_score
             "#,
-            points,
-            user_id
+            user_id,
+            points
         )
         .execute(&self.pool)
         .await
@@ -196,4 +211,73 @@ impl MissionRepository for PostgresMissionRepository {
             None => Ok(None),
         }
     }
+
+    async fn create_daily_mission(&self, mission: &DailyMission) -> Result<(), String> {
+        sqlx::query!(
+            r#"
+            INSERT INTO daily_missions (id, description, target_count, date, reward_points, mission_type)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+            mission.id(),
+            mission.description(),
+            mission.target_count(),
+            mission.date(),
+            mission.reward_points(),
+            format!("{:?}", mission.mission_type())
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal membuat misi harian: {}", e))?;
+
+        Ok(())
+    }
+
+    async fn update_daily_mission(&self, mission: &DailyMission) -> Result<(), String> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE daily_missions
+            SET
+                description = $2,
+                target_count = $3,
+                date = $4,
+                reward_points = $5,
+                mission_type = $6
+            WHERE id = $1
+            "#,
+            mission.id(),
+            mission.description(),
+            mission.target_count(),
+            mission.date(),
+            mission.reward_points(),
+            format!("{:?}", mission.mission_type())
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memperbarui misi harian: {}", e))?;
+
+        if result.rows_affected() == 0 {
+            return Err("Data misi harian tidak ditemukan di sistem.".to_string());
+        }
+
+        Ok(())
+    }
+
+    async fn delete_daily_mission(&self, id: Uuid) -> Result<(), String> {
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM daily_missions
+            WHERE id = $1
+            "#,
+            id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal menghapus misi harian: {}", e))?;
+
+        if result.rows_affected() == 0 {
+            return Err("Data misi harian tidak ditemukan di sistem.".to_string());
+        }
+
+        Ok(())
+}
 }

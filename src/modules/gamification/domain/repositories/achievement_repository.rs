@@ -11,7 +11,13 @@ pub trait AchievementRepository: Send + Sync {
     async fn get_achievements_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Achievement>, String>;
     async fn get_achievement_by_id(&self, id: Uuid) -> Result<Option<Achievement>, String>;
     async fn get_user_achievements(&self, user_id: Uuid) -> Result<Vec<UserAchievement>, String>;
+    async fn get_user_achievement(
+        &self,
+        user_id: Uuid,
+        achievement_id: Uuid,
+    ) -> Result<Option<UserAchievement>, String>;
     async fn save_user_achievement(&self, user_achievement: &UserAchievement)
     -> Result<(), String>;
     async fn add_user_score(&self, user_id: Uuid, points: i32) -> Result<(), String>;
+    async fn create_achievement(&self, achievement: &Achievement) -> Result<(), String>;
 }

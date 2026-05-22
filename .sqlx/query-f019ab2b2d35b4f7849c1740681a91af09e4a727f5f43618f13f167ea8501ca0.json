@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, name, milestone_target, achievement_type, trigger_type, reward_points \n            FROM achievements\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "milestone_target",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "achievement_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "trigger_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "reward_points",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f019ab2b2d35b4f7849c1740681a91af09e4a727f5f43618f13f167ea8501ca0"
+}
