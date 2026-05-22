@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, name, milestone_target, achievement_type, reward_points \n            FROM achievements \n            WHERE id = ANY($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "milestone_target",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "achievement_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "reward_points",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "14ea2cd6bc5f0a6f42e7a279fe40d854319694c068041280b9c69c828bc7bfd0"
+}
