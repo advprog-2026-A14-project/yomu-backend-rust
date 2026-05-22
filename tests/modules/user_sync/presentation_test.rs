@@ -232,7 +232,7 @@ async fn test_api_sync_quiz_history_returns_500_for_nonexistent_user() {
 
     state.db.close().await;
 
-    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -300,7 +300,7 @@ async fn test_api_sync_user_creates_shadow_user() {
     app.oneshot(request).await.unwrap();
 
     let exists: (bool,) =
-        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM shadow_users WHERE user_id = $1)")
+        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM engine_users WHERE user_id = $1)")
             .bind(user_id)
             .fetch_one(&state.db)
             .await
