@@ -179,7 +179,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [fmt, clippy, doc, test]
+    needs: [fmt, doc, test]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
