@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT user_id, achievement_id, current_progress, is_completed, is_shown_on_profile, completed_at\n            FROM user_achievements\n            WHERE user_id = $1 AND achievement_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "achievement_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "current_progress",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_completed",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "is_shown_on_profile",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "961f8700984a95757282af39eca7ce9aeb6422a38ae93a8576595c4cda49229b"
+}

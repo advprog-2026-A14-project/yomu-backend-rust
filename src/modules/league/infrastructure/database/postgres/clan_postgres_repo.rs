@@ -22,7 +22,7 @@ impl ClanRepository for ClanPostgresRepo {
     /// Inserts a new clan record into the clans table.
     async fn create_clan(&self, clan: &Clan) -> Result<(), AppError> {
         sqlx::query(
-            "INSERT INTO clans (id, name, leader_id, tier, total_score, created_at) VALUES ($1, $2, $3, $4, $5, $6)"
+            "INSERT INTO clans (id, name, leader_id, tier, total_score, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
         )
         .bind(clan.id())
         .bind(clan.name())

@@ -35,9 +35,9 @@ impl AppConfig {
             java_core_url: get_env_strict("JAVA_CORE_URL"),
             java_core_api_key: get_env_strict("JAVA_CORE_API_KEY"),
             jwt_secret: get_env_strict("JWT_SECRET"),
-            pg_pool_max_connections: get_env_parse("PG_POOL_MAX_CONNECTIONS", "20"),
+            pg_pool_max_connections: get_env_parse("PG_POOL_MAX_CONNECTIONS", "50"),
             pg_pool_min_connections: get_env_parse("PG_POOL_MIN_CONNECTIONS", "5"),
-            pg_pool_acquire_timeout_secs: get_env_parse("PG_POOL_ACQUIRE_TIMEOUT_SECS", "5"),
+            pg_pool_acquire_timeout_secs: get_env_parse("PG_POOL_ACQUIRE_TIMEOUT_SECS", "30"),
             pg_pool_max_lifetime_secs: get_env_parse("PG_POOL_MAX_LIFETIME_SECS", "1800"),
             pg_pool_idle_timeout_secs: get_env_parse("PG_POOL_IDLE_TIMEOUT_SECS", "300"),
         }

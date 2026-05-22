@@ -801,7 +801,7 @@ async fn test_get_leaderboard_success() {
     let mut mock_clan_repo = MockClanRepositoryRepo::new();
     mock_clan_repo
         .expect_get_leaders_by_clan_ids()
-        .return_once(|ids| {
+        .return_once(move |ids| {
             let mut map = std::collections::HashMap::new();
             if ids.contains(&clan_id_a) {
                 map.insert(clan_id_a, leader_a);
@@ -814,7 +814,7 @@ async fn test_get_leaderboard_success() {
         .once();
     mock_clan_repo
         .expect_get_clan_names_by_ids()
-        .return_once(|ids| {
+        .return_once(move |ids| {
             let mut map = std::collections::HashMap::new();
             if ids.contains(&clan_id_a) {
                 map.insert(clan_id_a, "Clan A".to_string());

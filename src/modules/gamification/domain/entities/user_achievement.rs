@@ -62,6 +62,18 @@ impl UserAchievement {
     pub fn completed_at(&self) -> Option<DateTime<Utc>> {
         self.completed_at
     }
+
+    /// Sets whether this achievement is visible on the user's public profile.
+    /// Only completed achievements may be shown (`is_shown_on_profile = true`).
+    pub fn set_shown_on_profile(&mut self, shown: bool) -> Result<(), String> {
+        if shown && !self.is_completed {
+            return Err(
+                "Hanya pencapaian yang sudah selesai yang dapat ditampilkan di profil.".into(),
+            );
+        }
+        self.is_shown_on_profile = shown;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -83,6 +95,25 @@ mod test {
         assert!(user_achievement.is_completed());
         assert!(user_achievement.completed_at().is_some());
         assert_eq!(user_achievement.completed_at(), Some(test_time));
+    }
+
+    #[test]
+    fn test_set_shown_on_profile_requires_completion_when_showing() {
+        let mut user_achievement = UserAchievement::new(Uuid::new_v4(), Uuid::new_v4());
+        assert!(user_achievement.set_shown_on_profile(true).is_err());
+        assert!(!user_achievement.is_shown_on_profile());
+
+        user_achievement.add_progress(1, 1, Utc::now());
+        assert!(user_achievement.set_shown_on_profile(true).is_ok());
+        assert!(user_achievement.is_shown_on_profile());
+    }
+
+    #[test]
+    fn test_set_shown_on_profile_can_hide_when_incomplete() {
+        let mut user_achievement = UserAchievement::new(Uuid::new_v4(), Uuid::new_v4());
+        user_achievement.is_shown_on_profile = true;
+        assert!(user_achievement.set_shown_on_profile(false).is_ok());
+        assert!(!user_achievement.is_shown_on_profile());
     }
 
     #[test]

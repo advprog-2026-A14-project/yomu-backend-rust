@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO engine_users (user_id, total_score)\n            VALUES ($1, $2)\n            ON CONFLICT (user_id)\n            DO UPDATE SET total_score = engine_users.total_score + EXCLUDED.total_score\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "194834701acca832b063cd6d7414e44405f54b94457e649811661a7157674b84"
+}

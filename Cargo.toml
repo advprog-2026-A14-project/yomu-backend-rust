@@ -87,7 +87,9 @@ incremental = true
 [dev-dependencies]
 mockall = "0.14.0"
 async-trait = "0.1"
-proptest = "1.9"
+proptest = "1.9"  
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "macros", "migrate"] }
+redis = { version = "1.0.4", features = ["tokio-comp"] }
 
 [build-dependencies]
 tonic-build = "0.13.1"
@@ -119,3 +121,15 @@ path = "tests/modules/user_sync/infrastructure_test.rs"
 [[test]]
 name = "user_sync_presentation_test"
 path = "tests/modules/user_sync/presentation_test.rs"
+
+[[test]]
+name = "gamification_domain_test"
+path = "tests/modules/gamification/domain_test.rs"
+
+[[test]]
+name = "gamification_usecase_test"
+path = "tests/modules/gamification/usecase_test.rs"
+
+[[test]]
+name = "gamification_infrastructure_test"
+path = "tests/modules/gamification/infrastructure_test.rs"

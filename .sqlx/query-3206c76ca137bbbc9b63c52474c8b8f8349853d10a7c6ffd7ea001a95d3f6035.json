@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO user_missions (user_id, mission_id, current_progress, is_claimed)\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (user_id, mission_id) \n            DO UPDATE SET \n                current_progress = EXCLUDED.current_progress,\n                is_claimed = EXCLUDED.is_claimed\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3206c76ca137bbbc9b63c52474c8b8f8349853d10a7c6ffd7ea001a95d3f6035"
+}

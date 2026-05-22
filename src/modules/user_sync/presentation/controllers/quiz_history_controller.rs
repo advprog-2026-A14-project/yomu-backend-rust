@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     AppState,
     modules::user_sync::{
@@ -19,6 +21,13 @@ pub struct QuizHistoryApiResponse {
     pub missions_updated: i32,
     pub message: String,
 }
+
+use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
+use crate::modules::gamification::application::use_cases::sync_quiz_gamification::SyncQuizGamificationUseCase;
+use crate::modules::gamification::infrastructure::database::postgres::{
+    PostgresAchievementRepository, PostgresMissionRepository,
+};
+use crate::modules::user_sync::domain::errors::UserSyncError;
 
 #[utoipa::path(
     post,
@@ -42,22 +51,35 @@ pub async fn sync_quiz_history_handler(
     let quiz_repo = QuizHistoryPostgresRepo::new(state.db.clone());
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);
 
-    let response = use_case
-        .execute(dto)
-        .await
-        .map_err(|e| AppError::InternalServer(e.to_string()))?;
+    use_case.execute(dto.clone()).await.map_err(|e| match e {
+        UserSyncError::InvalidQuizData(msg) => AppError::BadRequest(msg),
+        UserSyncError::UserNotFound(msg) => AppError::NotFound(msg),
+        other => AppError::InternalServer(other.to_string()),
+    })?;
 
-    let api_response = QuizHistoryApiResponse {
-        user_id: response.user_id,
-        missions_updated: response.missions_updated,
-        message: response.message,
+    let gamification_payload = SyncQuizHistoryRequestDto {
+        user_id: dto.user_id,
+        article_id: dto.article_id,
+        score: dto.score,
+        accuracy: dto.accuracy,
     };
+
+    let mission_repo = Arc::new(PostgresMissionRepository::new(state.db.clone()));
+    let achievement_repo = Arc::new(PostgresAchievementRepository::new(state.db.clone()));
+    let gamification_uc = SyncQuizGamificationUseCase::new(mission_repo, achievement_repo);
+
+    if let Err(e) = gamification_uc.execute(gamification_payload).await {
+        tracing::warn!(
+            user_id = %dto.user_id,
+            error = %e,
+            "Gamification sync failed after quiz history saved — quiz result preserved"
+        );
+    }
 
     Ok((
         StatusCode::CREATED,
-        Json(ApiResponse::success(
+        Json(ApiResponse::success_without_data(
             "Data riwayat kuis berhasil dicatat dan diproses oleh Engine",
-            api_response,
         )),
     ))
 }
