@@ -22,12 +22,18 @@ use crate::shared::utils::response::ApiResponse;
 pub async fn get_user_achievements(
     State(state): State<AppState>,
     Path(user_id): Path<Uuid>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
 ) -> Result<(StatusCode, Json<ApiResponse<UserAchievementsResponseDto>>), AppError> {
+    let auth_user_id = Uuid::parse_str(&auth_user.user_id)
+        .map_err(|_| AppError::Unauthorized("Invalid user_id in token".into()))?;
+
+    let include_hidden = auth_user_id == user_id;
+
     let achievement_repo = Arc::new(PostgresAchievementRepository::new(state.db.clone()));
     let use_case = GetUserAchievementsUseCase::new(achievement_repo);
 
     let data = use_case
-        .execute(user_id)
+        .execute(user_id, include_hidden)
         .await
         .map_err(AppError::InternalServer)?;
 

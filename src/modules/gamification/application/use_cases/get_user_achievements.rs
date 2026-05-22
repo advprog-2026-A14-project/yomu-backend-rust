@@ -16,17 +16,27 @@ impl GetUserAchievementsUseCase {
         Self { repository }
     }
 
-    pub async fn execute(&self, user_id: Uuid) -> Result<UserAchievementsResponseDto, String> {
+    pub async fn execute(
+        &self,
+        user_id: Uuid,
+        include_hidden: bool,
+    ) -> Result<UserAchievementsResponseDto, String> {
         let user_achievements = self.repository.get_user_achievements(user_id).await?;
 
-        if user_achievements.is_empty() {
+        let visible_completed: Vec<_> = user_achievements
+            .into_iter()
+            .filter(|ua| ua.is_completed())
+            .filter(|ua| include_hidden || ua.is_shown_on_profile())
+            .collect();
+
+        if visible_completed.is_empty() {
             return Ok(UserAchievementsResponseDto {
                 user_id,
                 achievements: Vec::new(),
             });
         }
 
-        let achievement_ids: Vec<_> = user_achievements
+        let achievement_ids: Vec<_> = visible_completed
             .iter()
             .map(|ua| ua.achievement_id())
             .collect();
@@ -34,7 +44,7 @@ impl GetUserAchievementsUseCase {
         let masters = self.repository.get_achievements_by_ids(&achievement_ids).await?;
         let master_map: HashMap<_, _> = masters.into_iter().map(|a| (a.id(), a)).collect();
 
-        let achievements = user_achievements
+        let achievements = visible_completed
             .into_iter()
             .filter_map(|ua| {
                 master_map.get(&ua.achievement_id()).map(|master| UserAchievementItemDto {
