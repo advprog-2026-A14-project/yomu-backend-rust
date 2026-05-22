@@ -1,28 +1,29 @@
 use axum::{
-    routing::{post, get},
+    routing::{get, patch, post},
     Router,
 };
 
 use crate::modules::gamification::presentation::controllers::{
-    claim_mission_controller, achievement_controller, mission_controller
+    achievement_controller, claim_mission_controller, mission_controller,
 };
-
 use crate::AppState;
-// untuk use case yang dibutuhkan  controller
+
 pub fn gamification_public_routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/missions/:id/claim",
-            post(claim_mission_controller::claim_mission_reward),
-        )
-
         .route(
             "/missions/daily",
             get(mission_controller::get_daily_missions),
         )
-
         .route(
-            "/achievements/users/:user_id",
+            "/missions/{id}/claim",
+            post(claim_mission_controller::claim_mission_reward),
+        )
+        .route(
+            "/achievements/users/{user_id}",
             get(achievement_controller::get_user_achievements),
+        )
+        .route(
+            "/achievements/users/{user_id}/{achievement_id}/profile-visibility",
+            patch(achievement_controller::toggle_achievement_profile_visibility),
         )
 }

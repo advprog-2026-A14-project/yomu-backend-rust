@@ -87,6 +87,34 @@ impl AchievementRepository for PostgresAchievementRepository {
         Ok(achievements)
     }
 
+    async fn get_user_achievement(
+        &self,
+        user_id: Uuid,
+        achievement_id: Uuid,
+    ) -> Result<Option<UserAchievement>, String> {
+        let row = sqlx::query!(
+            r#"
+            SELECT user_id, achievement_id, current_progress, is_completed, is_shown_on_profile, completed_at
+            FROM user_achievements
+            WHERE user_id = $1 AND achievement_id = $2
+            "#,
+            user_id,
+            achievement_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| format!("Database error (get_user_achievement): {}", e))?;
+
+        Ok(row.map(|row| {
+            let mut user_ach = UserAchievement::new(row.user_id, row.achievement_id);
+            user_ach.current_progress = row.current_progress;
+            user_ach.is_completed = row.is_completed;
+            user_ach.is_shown_on_profile = row.is_shown_on_profile;
+            user_ach.completed_at = row.completed_at;
+            user_ach
+        }))
+    }
+
     async fn save_user_achievement(
         &self,
         user_achievement: &UserAchievement,
