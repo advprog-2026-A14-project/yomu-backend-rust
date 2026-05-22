@@ -79,6 +79,7 @@ mock! {
     #[async_trait]
     impl LeaderboardCache for LeaderboardCacheRepo {
         async fn update_clan_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
+        async fn add_clan_to_tier(&self, clan_id: Uuid, tier: &str) -> Result<(), AppError>;
         async fn get_top_clans(&self, tier: &str, limit: usize) -> Result<Vec<LeaderboardEntry>, AppError>;
         async fn get_clan_score(&self, clan_id: Uuid) -> Result<Option<i64>, AppError>;
         async fn remove_clan_from_leaderboard(&self, clan_id: Uuid) -> Result<(), AppError>;
@@ -137,7 +138,13 @@ async fn test_create_clan_success() {
 
     mock_repo.expect_add_member().return_once(|_| Ok(())).once();
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_add_clan_to_tier()
+        .return_once(|_, _| Ok(()))
+        .once();
+
+    let use_case = CreateClanUseCase::new(mock_repo, mock_leaderboard);
     let dto = CreateClanDto {
         name: clan_name.to_string(),
         leader_id,
@@ -160,7 +167,7 @@ async fn test_create_clan_leader_already_in_clan() {
         .return_once(|_| Ok(true))
         .once();
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let use_case = CreateClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
     let dto = CreateClanDto {
         name: "Test Clan".to_string(),
         leader_id,
@@ -184,7 +191,13 @@ async fn create_clan_empty_name() {
     mock_repo.expect_create_clan().return_once(|_| Ok(()));
     mock_repo.expect_add_member().return_once(|_| Ok(()));
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_add_clan_to_tier()
+        .return_once(|_, _| Ok(()))
+        .once();
+
+    let use_case = CreateClanUseCase::new(mock_repo, mock_leaderboard);
     let dto = CreateClanDto {
         name: "".to_string(),
         leader_id,
@@ -208,7 +221,13 @@ async fn create_clan_name_too_long() {
     mock_repo.expect_create_clan().return_once(|_| Ok(()));
     mock_repo.expect_add_member().return_once(|_| Ok(()));
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_add_clan_to_tier()
+        .return_once(|_, _| Ok(()))
+        .once();
+
+    let use_case = CreateClanUseCase::new(mock_repo, mock_leaderboard);
     let dto = CreateClanDto {
         name: long_name,
         leader_id,
@@ -237,7 +256,13 @@ async fn create_clan_concurrent_race() {
         .once();
     mock_repo.expect_add_member().return_once(|_| Ok(())).once();
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_add_clan_to_tier()
+        .return_once(|_, _| Ok(()))
+        .once();
+
+    let use_case = CreateClanUseCase::new(mock_repo, mock_leaderboard);
     let dto = CreateClanDto {
         name: clan_name.to_string(),
         leader_id,
@@ -253,7 +278,7 @@ async fn create_clan_concurrent_race() {
         .return_once(|_| Ok(true))
         .once();
 
-    let use_case2 = CreateClanUseCase::new(mock_repo2);
+    let use_case2 = CreateClanUseCase::new(mock_repo2, MockLeaderboardCacheRepo::new());
     let dto2 = CreateClanDto {
         name: clan_name.to_string(),
         leader_id,
@@ -279,7 +304,7 @@ async fn create_clan_repo_error() {
         .expect_create_clan()
         .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
 
-    let use_case = CreateClanUseCase::new(mock_repo);
+    let use_case = CreateClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
     let dto = CreateClanDto {
         name: "Test Clan".to_string(),
         leader_id,
