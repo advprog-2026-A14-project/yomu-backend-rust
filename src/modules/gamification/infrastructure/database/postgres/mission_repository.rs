@@ -83,6 +83,19 @@ impl MissionRepository for PostgresMissionRepository {
     }
 
     async fn save_user_mission(&self, user_mission: &UserMission) -> Result<(), String> {
+        // Ensure user row exists in engine_users before inserting FK-dependent row.
+        sqlx::query!(
+            r#"
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, 0)
+            ON CONFLICT (user_id) DO NOTHING
+            "#,
+            user_mission.user_id()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memastikan engine_users row: {}", e))?;
+
         sqlx::query!(
             r#"
             INSERT INTO user_missions (user_id, mission_id, current_progress, is_claimed)

@@ -13,6 +13,7 @@ use crate::modules::gamification::domain::entities::user_achievement::UserAchiev
 use crate::modules::gamification::domain::entities::user_mission::UserMission;
 use crate::modules::gamification::domain::repositories::achievement_repository::AchievementRepository;
 use crate::modules::gamification::domain::repositories::mission_repository::MissionRepository;
+use crate::modules::gamification::infrastructure::http::validate_article;
 
 pub struct SyncQuizGamificationUseCase {
     pub mission_repo: Arc<dyn MissionRepository>,
@@ -37,6 +38,47 @@ impl SyncQuizGamificationUseCase {
     pub async fn execute(&self, payload: SyncQuizHistoryRequestDto) -> Result<(), String> {
         let now = Utc::now();
         let today = now.naive_utc().date();
+
+        // §7.3 Fault Tolerance: validate article existence with Java Core.
+        // If Java Core is down or the call fails, we log a warning and continue
+        // processing missions and achievements without category info.
+        // We NEVER discard the sync event due to Java unavailability.
+        let java_core_url = std::env::var("JAVA_CORE_URL").ok();
+        let java_api_key = std::env::var("JAVA_CORE_API_KEY").unwrap_or_default();
+
+        let article_category: Option<String> = if let Some(ref base_url) = java_core_url {
+            match validate_article(base_url, &java_api_key, payload.article_id).await {
+                Ok(Some(data)) => {
+                    tracing::debug!(
+                        article_id = %payload.article_id,
+                        category = ?data.category_name,
+                        "Article validated via Java Core"
+                    );
+                    data.category_name
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        article_id = %payload.article_id,
+                        "Article tidak ditemukan di Java Core DB; lanjut tanpa validasi kategori"
+                    );
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        article_id = %payload.article_id,
+                        error = %e,
+                        "Java Core tidak dapat dijangkau; lanjut tanpa validasi kategori (§7.3)"
+                    );
+                    None
+                }
+            }
+        } else {
+            tracing::debug!("JAVA_CORE_URL tidak dikonfigurasi; lewati validasi artikel");
+            None
+        };
+
+        // article_category is available here for future category-specific achievement logic.
+        let _ = article_category;
 
         let active_missions = self.mission_repo.get_active_missions_by_date(today).await?;
 

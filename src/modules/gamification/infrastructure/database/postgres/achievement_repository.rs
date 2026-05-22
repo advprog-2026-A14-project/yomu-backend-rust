@@ -117,6 +117,20 @@ impl AchievementRepository for PostgresAchievementRepository {
         &self,
         user_achievement: &UserAchievement,
     ) -> Result<(), String> {
+        // Ensure user row exists in engine_users before inserting FK-dependent row.
+        // This guards against the case where user_sync only created a shadow_users row.
+        sqlx::query!(
+            r#"
+            INSERT INTO engine_users (user_id, total_score)
+            VALUES ($1, 0)
+            ON CONFLICT (user_id) DO NOTHING
+            "#,
+            user_achievement.user_id()
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memastikan engine_users row: {}", e))?;
+
         // UPSERT: Insert jika baru pertama kali dapat progres, Update jika sudah ada
         sqlx::query!(
             r#"
