@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     AppState,
     modules::user_sync::{
@@ -11,6 +13,12 @@ use crate::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use utoipa::ToSchema;
+
+use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
+use crate::modules::gamification::application::use_cases::sync_quiz_gamification::SyncQuizGamificationUseCase;
+use crate::modules::gamification::infrastructure::database::postgres::{
+    PostgresAchievementRepository, PostgresMissionRepository,
+};
 
 #[derive(serde::Serialize, ToSchema)]
 pub struct QuizHistoryApiResponse {
@@ -40,9 +48,30 @@ pub async fn sync_quiz_history_handler(
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);
 
     let response = use_case
-        .execute(dto)
+        .execute(dto.clone())
         .await
         .map_err(|e| AppError::InternalServer(e.to_string()))?;
+
+    // Option A: trigger gamification (missions + achievements) after quiz is saved.
+    // Fault tolerance §7.2: gamification failure must NOT cause quiz sync to fail.
+    let gamification_payload = SyncQuizHistoryRequestDto {
+        user_id: dto.user_id,
+        article_id: dto.article_id,
+        score: dto.score,
+        accuracy: dto.accuracy,
+    };
+
+    let mission_repo = Arc::new(PostgresMissionRepository::new(state.db.clone()));
+    let achievement_repo = Arc::new(PostgresAchievementRepository::new(state.db.clone()));
+    let gamification_uc = SyncQuizGamificationUseCase::new(mission_repo, achievement_repo);
+
+    if let Err(e) = gamification_uc.execute(gamification_payload).await {
+        tracing::warn!(
+            user_id = %dto.user_id,
+            error = %e,
+            "Gamification sync failed after quiz history saved — quiz result preserved"
+        );
+    }
 
     let api_response = QuizHistoryApiResponse {
         user_id: response.user_id,
