@@ -6,6 +6,7 @@ use uuid::Uuid;
 #[async_trait]
 pub trait LeaderboardCache: Send + Sync {
     async fn update_clan_score(&self, clan_id: Uuid, score: i64) -> Result<(), AppError>;
+    async fn add_clan_to_tier(&self, clan_id: Uuid, tier: &str) -> Result<(), AppError>;
     async fn get_top_clans(
         &self,
         tier: &str,

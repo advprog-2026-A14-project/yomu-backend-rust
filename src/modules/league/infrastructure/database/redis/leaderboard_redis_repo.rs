@@ -34,6 +34,19 @@ impl LeaderboardCache for LeaderboardRedisRepo {
         Ok(())
     }
 
+    async fn add_clan_to_tier(&self, clan_id: Uuid, tier: &str) -> Result<(), AppError> {
+        let mut con = self.conn.clone();
+        let key = self.get_key(tier);
+        let _: String = redis::cmd("ZADD")
+            .arg(&key)
+            .arg(0)
+            .arg(clan_id.to_string())
+            .query_async(&mut con)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        Ok(())
+    }
+
     async fn get_top_clans(
         &self,
         tier: &str,

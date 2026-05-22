@@ -51,7 +51,8 @@ pub async fn create_clan_handler(
     Json(dto): Json<CreateClanDto>,
 ) -> Result<(StatusCode, Json<ApiResponse<Clan>>), AppError> {
     let repo = ClanPostgresRepo::new(state.db);
-    let use_case = CreateClanUseCase::new(repo);
+    let leaderboard = LeaderboardRedisRepo::new(state.redis);
+    let use_case = CreateClanUseCase::new(repo, leaderboard);
 
     let clan = use_case.execute(dto).await?;
 
