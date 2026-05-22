@@ -78,10 +78,12 @@ pub async fn get_leaderboard_handler(
     ),
     tag = "clans"
 )]
+#[instrument(skip(state))]
 pub async fn update_score_handler(
     State(state): State<AppState>,
     Path(clan_id): Path<Uuid>,
 ) -> Result<Json<ApiResponse<ScoreResultDto>>, AppError> {
+    tracing::info!(%clan_id, "Handling update score request");
     let clan_repo = ClanPostgresRepo::new(state.db.clone());
     let buff_repo = ClanBuffPostgresRepo::new(state.db.clone());
     let redis_repo = LeaderboardRedisRepo::new(state.redis);

@@ -4,6 +4,7 @@ use crate::modules::league::application::dto::{
 use crate::modules::league::domain::errors::LeagueError;
 use crate::modules::league::domain::repositories::ClanBuffRepository;
 use crate::modules::league::domain::repositories::ClanRepository;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct GetClanDetailUseCase<R: ClanRepository, B: ClanBuffRepository> {
@@ -19,7 +20,9 @@ impl<R: ClanRepository, B: ClanBuffRepository> GetClanDetailUseCase<R, B> {
         }
     }
 
+    #[instrument(skip(self))]
     pub async fn execute(&self, clan_id: Uuid) -> Result<ClanDetailDto, LeagueError> {
+        tracing::info!(%clan_id, "Executing get clan detail");
         let clan = self
             .repository
             .get_clan_by_id(clan_id)
