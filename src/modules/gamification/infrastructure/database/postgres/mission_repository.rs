@@ -216,4 +216,53 @@ impl MissionRepository for PostgresMissionRepository {
 
         Ok(())
     }
+
+    async fn update_daily_mission(&self, mission: &DailyMission) -> Result<(), String> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE daily_missions
+            SET
+                description = $2,
+                target_count = $3,
+                date = $4,
+                reward_points = $5,
+                mission_type = $6
+            WHERE id = $1
+            "#,
+            mission.id(),
+            mission.description(),
+            mission.target_count(),
+            mission.date(),
+            mission.reward_points(),
+            format!("{:?}", mission.mission_type())
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal memperbarui misi harian: {}", e))?;
+
+        if result.rows_affected() == 0 {
+            return Err("Data misi harian tidak ditemukan di sistem.".to_string());
+        }
+
+        Ok(())
+    }
+
+    async fn delete_daily_mission(&self, id: Uuid) -> Result<(), String> {
+        let result = sqlx::query!(
+            r#"
+            DELETE FROM daily_missions
+            WHERE id = $1
+            "#,
+            id
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| format!("Gagal menghapus misi harian: {}", e))?;
+
+        if result.rows_affected() == 0 {
+            return Err("Data misi harian tidak ditemukan di sistem.".to_string());
+        }
+
+        Ok(())
+}
 }

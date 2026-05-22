@@ -7,6 +7,7 @@ pub mod toggle_achievement_profile_visibility;
 pub mod create_daily_mission;
 pub mod update_daily_mission;
 pub mod delete_daily_mission;
+pub mod create_achievement;
 
 pub use claim_mission_reward::ClaimMissionRewardUseCase;
 pub use get_daily_missions::GetDailyMissionsUseCase;
@@ -16,3 +17,4 @@ pub use toggle_achievement_profile_visibility::ToggleAchievementProfileVisibilit
 pub use create_daily_mission::CreateDailyMissionUseCase;
 pub use update_daily_mission::UpdateDailyMissionUseCase;
 pub use delete_daily_mission::DeleteDailyMissionUseCase;
+pub use create_achievement::CreateAchievementUseCase;
