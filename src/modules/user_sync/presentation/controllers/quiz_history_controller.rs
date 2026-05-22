@@ -12,7 +12,6 @@ use crate::{
     shared::utils::response::ApiResponse,
 };
 use axum::{Json, extract::State, http::StatusCode};
-use utoipa::ToSchema;
 
 use crate::modules::gamification::application::dto::quiz_sync::SyncQuizHistoryRequestDto;
 use crate::modules::gamification::application::use_cases::sync_quiz_gamification::SyncQuizGamificationUseCase;
@@ -20,13 +19,6 @@ use crate::modules::gamification::infrastructure::database::postgres::{
     PostgresAchievementRepository, PostgresMissionRepository,
 };
 use crate::modules::user_sync::domain::errors::UserSyncError;
-
-#[derive(serde::Serialize, ToSchema)]
-pub struct QuizHistoryApiResponse {
-    pub user_id: uuid::Uuid,
-    pub missions_updated: i32,
-    pub message: String,
-}
 
 #[utoipa::path(
     post,
@@ -43,22 +35,20 @@ pub struct QuizHistoryApiResponse {
 pub async fn sync_quiz_history_handler(
     State(state): State<AppState>,
     Json(dto): Json<QuizHistoryRequestDto>,
-) -> Result<(StatusCode, Json<ApiResponse<QuizHistoryApiResponse>>), AppError> {
+) -> Result<(StatusCode, Json<ApiResponse<()>>), AppError> {
     let user_repo = UserPostgresRepo::new(state.db.clone());
     let quiz_repo = QuizHistoryPostgresRepo::new(state.db.clone());
     let use_case = SyncQuizHistoryUseCase::new(user_repo, quiz_repo);
 
-    let response = use_case
+    use_case
         .execute(dto.clone())
         .await
         .map_err(|e| match e {
             UserSyncError::InvalidQuizData(msg) => AppError::BadRequest(msg),
             UserSyncError::UserNotFound(msg) => AppError::NotFound(msg),
             other => AppError::InternalServer(other.to_string()),
-    })?;
+        })?;
 
-    // Option A: trigger gamification (missions + achievements) after quiz is saved.
-    // Fault tolerance §7.2: gamification failure must NOT cause quiz sync to fail.
     let gamification_payload = SyncQuizHistoryRequestDto {
         user_id: dto.user_id,
         article_id: dto.article_id,
@@ -78,17 +68,10 @@ pub async fn sync_quiz_history_handler(
         );
     }
 
-    let api_response = QuizHistoryApiResponse {
-        user_id: response.user_id,
-        missions_updated: response.missions_updated,
-        message: response.message,
-    };
-
     Ok((
         StatusCode::CREATED,
-        Json(ApiResponse::success(
+        Json(ApiResponse::success_without_data(
             "Data riwayat kuis berhasil dicatat dan diproses oleh Engine",
-            api_response,
         )),
     ))
 }
