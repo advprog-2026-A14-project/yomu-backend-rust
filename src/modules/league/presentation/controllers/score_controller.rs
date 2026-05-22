@@ -14,6 +14,7 @@ use crate::modules::league::infrastructure::database::redis::LeaderboardRedisRep
 use crate::shared::domain::base_error::AppError;
 use crate::shared::utils::response::ApiResponse;
 use serde::Deserialize;
+use tracing::instrument;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -38,6 +39,7 @@ fn default_tier() -> String {
     ),
     tag = "leaderboard"
 )]
+#[instrument(skip(state))]
 pub async fn get_leaderboard_handler(
     State(state): State<AppState>,
     Query(query): Query<LeaderboardQuery>,
@@ -46,6 +48,7 @@ pub async fn get_leaderboard_handler(
     let clan_repo = ClanPostgresRepo::new(state.db.clone());
     let use_case = GetLeaderboardUseCase::new(clan_repo, redis_repo);
 
+    tracing::info!(tier = %query.tier, "Fetching leaderboard");
     let leaderboard = use_case.execute(query.tier).await?;
 
     let mut response = Json(ApiResponse::success(

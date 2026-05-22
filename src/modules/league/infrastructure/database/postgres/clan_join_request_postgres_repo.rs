@@ -35,7 +35,10 @@ impl ClanJoinRequestRepository for ClanJoinRequestPostgresRepo {
         Ok(())
     }
 
-    async fn get_pending_requests_by_clan(&self, clan_id: Uuid) -> Result<Vec<ClanJoinRequest>, AppError> {
+    async fn get_pending_requests_by_clan(
+        &self,
+        clan_id: Uuid,
+    ) -> Result<Vec<ClanJoinRequest>, AppError> {
         let rows = sqlx::query(
             "SELECT id, clan_id, user_id, status, created_at, updated_at FROM clan_join_requests WHERE clan_id = $1 AND status = 'Pending'",
         )
@@ -53,14 +56,24 @@ impl ClanJoinRequestRepository for ClanJoinRequestPostgresRepo {
                 let status_str: String = row.get("status");
                 let created_at: chrono::DateTime<chrono::Utc> = row.get("created_at");
                 let updated_at: chrono::DateTime<chrono::Utc> = row.get("updated_at");
-                ClanJoinRequest::with_id(id, clan_id, user_id, RequestStatus::from_str(&status_str), created_at, updated_at)
+                ClanJoinRequest::with_id(
+                    id,
+                    clan_id,
+                    user_id,
+                    RequestStatus::from_str(&status_str),
+                    created_at,
+                    updated_at,
+                )
             })
             .collect();
 
         Ok(requests)
     }
 
-    async fn get_request_by_id(&self, request_id: Uuid) -> Result<Option<ClanJoinRequest>, AppError> {
+    async fn get_request_by_id(
+        &self,
+        request_id: Uuid,
+    ) -> Result<Option<ClanJoinRequest>, AppError> {
         let row = sqlx::query(
             "SELECT id, clan_id, user_id, status, created_at, updated_at FROM clan_join_requests WHERE id = $1",
         )
@@ -78,7 +91,12 @@ impl ClanJoinRequestRepository for ClanJoinRequestPostgresRepo {
                 let created_at: chrono::DateTime<chrono::Utc> = r.get("created_at");
                 let updated_at: chrono::DateTime<chrono::Utc> = r.get("updated_at");
                 Ok(Some(ClanJoinRequest::with_id(
-                    id, clan_id, user_id, RequestStatus::from_str(&status_str), created_at, updated_at,
+                    id,
+                    clan_id,
+                    user_id,
+                    RequestStatus::from_str(&status_str),
+                    created_at,
+                    updated_at,
                 )))
             }
             None => Ok(None),
@@ -108,7 +126,12 @@ impl ClanJoinRequestRepository for ClanJoinRequestPostgresRepo {
                 let created_at: chrono::DateTime<chrono::Utc> = r.get("created_at");
                 let updated_at: chrono::DateTime<chrono::Utc> = r.get("updated_at");
                 Ok(Some(ClanJoinRequest::with_id(
-                    id, cid, uid, RequestStatus::from_str(&status_str), created_at, updated_at,
+                    id,
+                    cid,
+                    uid,
+                    RequestStatus::from_str(&status_str),
+                    created_at,
+                    updated_at,
                 )))
             }
             None => Ok(None),
@@ -116,16 +139,21 @@ impl ClanJoinRequestRepository for ClanJoinRequestPostgresRepo {
     }
 
     async fn has_pending_request(&self, user_id: Uuid) -> Result<bool, AppError> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM clan_join_requests WHERE user_id = $1 AND status = 'Pending'")
-                .bind(user_id)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM clan_join_requests WHERE user_id = $1 AND status = 'Pending'",
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::InternalServer(e.to_string()))?;
         Ok(count > 0)
     }
 
-    async fn update_request_status(&self, request_id: Uuid, status: &RequestStatus) -> Result<(), AppError> {
+    async fn update_request_status(
+        &self,
+        request_id: Uuid,
+        status: &RequestStatus,
+    ) -> Result<(), AppError> {
         let now = chrono::Utc::now();
         sqlx::query("UPDATE clan_join_requests SET status = $1, updated_at = $2 WHERE id = $3")
             .bind(status.to_string())

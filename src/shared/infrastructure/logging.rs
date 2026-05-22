@@ -82,9 +82,20 @@ pub fn init_logging(config: Option<LogConfig>) -> WorkerGuard {
         .with_file(true)
         .with_line_number(true);
 
+    // Stdout layer for Docker log driver visibility (Loki reads container stdout)
+    let stdout_layer = fmt::layer()
+        .json()
+        .with_writer(std::io::stdout)
+        .with_ansi(false)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true);
+
     tracing_subscriber::registry()
         .with(otel_layer())
         .with(env_filter)
+        .with(stdout_layer)
         .with(file_layer)
         .init();
 

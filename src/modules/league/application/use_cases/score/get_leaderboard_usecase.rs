@@ -9,7 +9,10 @@ pub struct GetLeaderboardUseCase<R: ClanRepository, L: LeaderboardCache> {
 
 impl<R: ClanRepository, L: LeaderboardCache> GetLeaderboardUseCase<R, L> {
     pub fn new(clan_repo: R, leaderboard: L) -> Self {
-        Self { clan_repo, leaderboard }
+        Self {
+            clan_repo,
+            leaderboard,
+        }
     }
 
     pub async fn execute(&self, tier: String) -> Result<LeaderboardDto, AppError> {
@@ -22,7 +25,10 @@ impl<R: ClanRepository, L: LeaderboardCache> GetLeaderboardUseCase<R, L> {
         let entries_with_data = entries
             .into_iter()
             .map(|mut e| {
-                e.leader_id = leader_map.get(&e.clan_id).copied().unwrap_or(uuid::Uuid::nil());
+                e.leader_id = leader_map
+                    .get(&e.clan_id)
+                    .copied()
+                    .unwrap_or(uuid::Uuid::nil());
                 if let Some(name) = name_map.get(&e.clan_id) {
                     e.clan_name = name.clone();
                 }
@@ -30,6 +36,9 @@ impl<R: ClanRepository, L: LeaderboardCache> GetLeaderboardUseCase<R, L> {
             })
             .collect();
 
-        Ok(LeaderboardDto { entries: entries_with_data, tier })
+        Ok(LeaderboardDto {
+            entries: entries_with_data,
+            tier,
+        })
     }
 }

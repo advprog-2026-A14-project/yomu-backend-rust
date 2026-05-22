@@ -20,8 +20,10 @@ use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
     timeout::TimeoutLayer,
-    trace::TraceLayer,
+    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
+
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use yomu_backend_rust::{ApiDoc, AppState, HealthResponse};
@@ -168,8 +170,11 @@ async fn async_main(app_config: config::AppConfig) {
         .layer(CompressionLayer::new())
         .layer(prometheus_layer)
         .layer(NewSentryLayer::new_from_top())
-        .layer(TraceLayer::new_for_http())
-        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10)))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
