@@ -64,6 +64,7 @@ mock! {
             &self,
             clan_ids: &[Uuid],
         ) -> Result<std::collections::HashMap<Uuid, String>, AppError>;
+        async fn ensure_user_exists(&self, user_id: Uuid) -> Result<(), AppError>;
     }
 }
 
@@ -134,6 +135,11 @@ async fn test_create_clan_success() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
+
+    mock_repo
         .expect_is_user_in_any_clan()
         .with(mockall::predicate::eq(leader_id))
         .return_once(|_| Ok(false))
@@ -170,6 +176,11 @@ async fn test_create_clan_leader_already_in_clan() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
+
+    mock_repo
         .expect_is_user_in_any_clan()
         .with(mockall::predicate::eq(leader_id))
         .return_once(|_| Ok(true))
@@ -193,6 +204,10 @@ async fn create_clan_empty_name() {
     let leader_id = Uuid::new_v4();
 
     let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
     mock_repo
         .expect_is_user_in_any_clan()
         .return_once(|_| Ok(false));
@@ -221,6 +236,11 @@ async fn create_clan_name_too_long() {
     let long_name = "a".repeat(51);
 
     let mut mock_repo = MockClanRepositoryRepo::new();
+
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
 
     mock_repo
         .expect_is_user_in_any_clan()
@@ -254,6 +274,11 @@ async fn create_clan_concurrent_race() {
     let mut mock_repo = MockClanRepositoryRepo::new();
 
     mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
+
+    mock_repo
         .expect_is_user_in_any_clan()
         .return_once(|_| Ok(false))
         .once();
@@ -282,6 +307,11 @@ async fn create_clan_concurrent_race() {
     let mut mock_repo2 = MockClanRepositoryRepo::new();
 
     mock_repo2
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
+
+    mock_repo2
         .expect_is_user_in_any_clan()
         .return_once(|_| Ok(true))
         .once();
@@ -303,6 +333,11 @@ async fn create_clan_repo_error() {
     let leader_id = Uuid::new_v4();
 
     let mut mock_repo = MockClanRepositoryRepo::new();
+
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()))
+        .once();
 
     mock_repo
         .expect_is_user_in_any_clan()

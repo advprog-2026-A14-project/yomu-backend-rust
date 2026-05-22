@@ -264,6 +264,15 @@ impl ClanRepository for ClanPostgresRepo {
 
         Ok(map)
     }
+
+    async fn ensure_user_exists(&self, user_id: Uuid) -> Result<(), AppError> {
+        sqlx::query("INSERT INTO engine_users (user_id, total_score) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| AppError::InternalServer(e.to_string()))?;
+        Ok(())
+    }
 }
 
 // Helper struct for sqlx::query_as!

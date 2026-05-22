@@ -27,4 +27,7 @@ pub trait ClanRepository: Send + Sync {
         &self,
         clan_ids: &[Uuid],
     ) -> Result<std::collections::HashMap<Uuid, String>, AppError>;
+    /// Ensures a user row exists in engine_users table.
+    /// Call this before operations that have FK constraints on engine_users.user_id.
+    async fn ensure_user_exists(&self, user_id: Uuid) -> Result<(), AppError>;
 }
