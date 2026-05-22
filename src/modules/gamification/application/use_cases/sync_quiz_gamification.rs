@@ -147,7 +147,8 @@ impl SyncQuizGamificationUseCase {
 mod tests {
     use super::*;
     use crate::modules::gamification::domain::entities::achievement::AchievementType;
-    use chrono::NaiveDate;
+    use axum::extract::connect_info::ResponseFuture;
+use chrono::NaiveDate;
     use uuid::Uuid;
 
     use crate::modules::gamification::domain::repositories::achievement_repository::MockAchievementRepository;
@@ -183,6 +184,29 @@ mod tests {
         }
     }
 
+    /// No user achievements and no master achievements in DB.
+    fn mock_achievement_repo_empty() -> MockAchievementRepository {
+        let mut repo = MockAchievementRepository::new();
+        repo.expect_get_user_achievements()
+            .return_once(|_| Ok(vec![]));
+        repo.expect_get_all_achievements()
+            .return_once(|| Ok(vec![]));
+        repo 
+    }
+
+    /// User already tracked; masters returned from get_all_achievements.
+    fn mock_achievement_repo_with_progress(
+        user_achievements: Vec<UserAchievement>,
+        all_achievements: Vec<Achievement>,
+    ) -> MockAchievementRepository {
+        let mut repo = MockAchievementRepository::new();
+        repo.expect_get_user_achievements()
+            .return_once(move |_| Ok(user_achievements));
+        repo.expect_get_all_achievements()
+            .return_once(move || Ok(all_achievements));
+        repo
+    }
+
     #[tokio::test]
     async fn sync_quiz_creates_new_mission_progress() {
         let user_id = Uuid::new_v4();
@@ -197,29 +221,18 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(move |_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -237,29 +250,18 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![existing_user_mission]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -278,35 +280,23 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![existing_user_mission]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
     async fn sync_quiz_no_matching_missions() {
         let user_id = Uuid::new_v4();
-        let _today = Utc::now().naive_utc().date();
         let payload = create_payload(user_id);
 
         let mut mission_repo = MockMissionRepository::new();
@@ -314,20 +304,11 @@ mod tests {
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -344,15 +325,8 @@ mod tests {
         let achievement = create_test_achievement(achievement_id, "Quiz Starter", 5, 50);
         let user_achievement = UserAchievement::new(user_id, achievement_id);
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![user_achievement]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(move |_| Ok(vec![achievement.clone()]));
-
+        let mut achievement_repo =
+            mock_achievement_repo_with_progress(vec![user_achievement], vec![achievement.clone()]);
         achievement_repo
             .expect_save_user_achievement()
             .returning(|_| Ok(()));
@@ -360,8 +334,7 @@ mod tests {
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -379,28 +352,16 @@ mod tests {
         let mut user_achievement = UserAchievement::new(user_id, achievement_id);
         user_achievement.add_progress(1, 1, Utc::now());
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![user_achievement]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(move |_| Ok(vec![achievement.clone()]));
-
-        achievement_repo
-            .expect_add_user_score()
-            .return_once(|_, _| Ok(()));
-
-        achievement_repo
-            .expect_save_user_achievement()
-            .returning(|_| Ok(()));
+        // Already completed — loop skips; no save/add_score expected
+        let achievement_repo = mock_achievement_repo_with_progress(
+            vec![user_achievement],
+            vec![achievement],
+        );
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -418,19 +379,11 @@ mod tests {
         let mut user_achievement = UserAchievement::new(user_id, achievement_id);
         user_achievement.add_progress(1, 2, Utc::now());
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![user_achievement]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(move |_| Ok(vec![achievement.clone()]));
-
+        let mut achievement_repo =
+            mock_achievement_repo_with_progress(vec![user_achievement], vec![achievement]);
         achievement_repo
             .expect_add_user_score()
             .return_once(|_, _| Ok(()));
-
         achievement_repo
             .expect_save_user_achievement()
             .returning(|_| Ok(()));
@@ -438,8 +391,40 @@ mod tests {
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn sync_quiz_auto_enrolls_new_achievement() {
+        let user_id = Uuid::new_v4();
+        let achievement_id = Uuid::new_v4();
+        let payload = create_payload(user_id);
+
+        let mut mission_repo = MockMissionRepository::new();
+        mission_repo
+            .expect_get_active_missions_by_date()
+            .return_once(|_| Ok(vec![]));
+
+        let achievement = create_test_achievement(achievement_id, "First Reader", 1, 10);
+
+        let mut achievement_repo = MockAchievementRepository::new();
+        achievement_repo
+            .expect_get_user_achievements()
+            .return_once(|_| Ok(vec![]));
+        achievement_repo
+            .expect_get_all_achievements()
+            .return_once(move || Ok(vec![achievement]));
+        achievement_repo
+            .expect_save_user_achievement()
+            .returning(|_| Ok(()));
+        achievement_repo
+            .expect_add_user_score()
+            .return_once(|_, _| Ok(()));
+
+        let use_case =
+            SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
+
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -455,29 +440,18 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -495,20 +469,11 @@ mod tests {
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![]));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -525,29 +490,18 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -566,29 +520,18 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![existing_user_mission]));
-
         mission_repo
             .expect_save_user_mission()
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -607,30 +550,19 @@ mod tests {
         mission_repo
             .expect_get_active_missions_by_date()
             .return_once(|_| Ok(vec![mission1, mission2]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .return_once(|_, _| Ok(vec![]));
-
         mission_repo
             .expect_save_user_mission()
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut achievement_repo = MockAchievementRepository::new();
-        achievement_repo
-            .expect_get_user_achievements()
-            .return_once(|_| Ok(vec![]));
-
-        achievement_repo
-            .expect_get_achievements_by_ids()
-            .return_once(|_| Ok(vec![]));
-
+        let achievement_repo = mock_achievement_repo_empty();
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
-        let result = use_case.execute(payload).await;
-        assert!(result.is_ok());
+        assert!(use_case.execute(payload).await.is_ok());
     }
 
     #[tokio::test]
@@ -647,12 +579,10 @@ mod tests {
             .expect_get_active_missions_by_date()
             .times(2)
             .returning(move |_| Ok(vec![mission.clone()]));
-
         mission_repo
             .expect_get_user_missions_batch()
             .times(2)
             .returning(|_, _| Ok(vec![]));
-
         mission_repo
             .expect_save_user_mission()
             .times(2)
@@ -663,11 +593,10 @@ mod tests {
             .expect_get_user_achievements()
             .times(2)
             .returning(|_| Ok(vec![]));
-
         achievement_repo
-            .expect_get_achievements_by_ids()
+            .expect_get_all_achievements()
             .times(2)
-            .returning(|_| Ok(vec![]));
+            .returning(|| Ok(vec![]));
 
         let use_case =
             SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
