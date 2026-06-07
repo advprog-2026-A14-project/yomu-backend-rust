@@ -664,11 +664,11 @@ mod redis_tests {
         let clan_a_id = Uuid::new_v4();
         let clan_b_id = Uuid::new_v4();
 
-        let key_a = format!("leaderboard:{}:{}", tier, clan_a_id);
-        let key_b = format!("leaderboard:{}:{}", tier, clan_b_id);
+        // Use aggregate leaderboard key directly
+        let leaderboard_key = format!("leaderboard:{}", tier);
 
         let _: () = redis::cmd("ZADD")
-            .arg(&key_a)
+            .arg(&leaderboard_key)
             .arg(100)
             .arg(clan_a_id.to_string())
             .query_async(&mut con)
@@ -676,23 +676,12 @@ mod redis_tests {
             .expect("Failed to add score for clan A");
 
         let _: () = redis::cmd("ZADD")
-            .arg(&key_b)
+            .arg(&leaderboard_key)
             .arg(50)
             .arg(clan_b_id.to_string())
             .query_async(&mut con)
             .await
             .expect("Failed to add score for clan B");
-
-        let _: Vec<(String, i64)> = redis::cmd("ZREVRANGE")
-            .arg(&key_a)
-            .arg(0)
-            .arg(10)
-            .arg("WITHSCORES")
-            .query_async(&mut con)
-            .await
-            .expect("Failed to get top clans");
-
-        let leaderboard_key = format!("leaderboard:{}", tier);
 
         let top_clans: Vec<(String, i64)> = redis::cmd("ZREVRANGE")
             .arg(&leaderboard_key)
@@ -704,16 +693,10 @@ mod redis_tests {
             .unwrap_or_else(|_| vec![]);
 
         let _: () = redis::cmd("DEL")
-            .arg(&key_a)
+            .arg(&leaderboard_key)
             .query_async(&mut con)
             .await
-            .expect("Failed to clean up key A");
-
-        let _: () = redis::cmd("DEL")
-            .arg(&key_b)
-            .query_async(&mut con)
-            .await
-            .expect("Failed to clean up key B");
+            .expect("Failed to clean up leaderboard key");
 
         if !top_clans.is_empty() {
             let first_clan_score = top_clans[0].1;
