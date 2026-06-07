@@ -133,3 +133,7 @@ path = "tests/modules/gamification/usecase_test.rs"
 [[test]]
 name = "gamification_infrastructure_test"
 path = "tests/modules/gamification/infrastructure_test.rs"
+
+[[test]]
+name = "gamification_presentation_test"
+path = "tests/modules/gamification/presentation_test.rs"

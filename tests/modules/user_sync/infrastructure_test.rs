@@ -422,3 +422,109 @@ mod pg_tests {
         pool.close().await;
     }
 }
+
+mod user_repo_additional_tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+    use std::time::Duration;
+
+    async fn setup_pg_pool() -> sqlx::PgPool {
+        PgPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(Duration::from_secs(10))
+            .connect(TEST_DATABASE_URL)
+            .await
+            .expect("Failed to connect to test database")
+    }
+
+    async fn cleanup_all_test_data(pool: &sqlx::PgPool, user_id: Uuid) {
+        let _ = sqlx::query("DELETE FROM quiz_history WHERE user_id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM engine_users WHERE user_id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_pg_update_total_score_on_nonexistent_user() {
+        let pool = setup_pg_pool().await;
+        let repo = UserPostgresRepo::new(pool.clone());
+
+        let result = repo.update_total_score(Uuid::new_v4(), 50).await;
+        assert!(
+            result.is_ok(),
+            "update_total_score on non-existent user should succeed (no-op)"
+        );
+
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn test_pg_get_shadow_user_with_null_total_score() {
+        let pool = setup_pg_pool().await;
+        let user_id = Uuid::new_v4();
+
+        sqlx::query("INSERT INTO engine_users (user_id) VALUES ($1)")
+            .bind(user_id)
+            .execute(&pool)
+            .await
+            .expect("Failed to insert user with NULL total_score");
+
+        let repo = UserPostgresRepo::new(pool.clone());
+        let retrieved = repo
+            .get_shadow_user(user_id)
+            .await
+            .expect("Query should succeed");
+
+        assert!(
+            retrieved.is_some(),
+            "Should retrieve user even with NULL total_score"
+        );
+        let user = retrieved.unwrap();
+        assert_eq!(
+            user.total_score(),
+            0,
+            "NULL total_score should default to 0"
+        );
+
+        cleanup_all_test_data(&pool, user_id).await;
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn test_pg_exists_shadow_user_and_check_exists_consistency() {
+        let pool = setup_pg_pool().await;
+        let user_id = Uuid::new_v4();
+
+        let repo = UserPostgresRepo::new(pool.clone());
+
+        assert!(
+            !repo.check_exists(user_id).await,
+            "check_exists should return false before user exists"
+        );
+        assert!(
+            !repo.exists_shadow_user(user_id).await.expect("Query should succeed"),
+            "exists_shadow_user should return false before user exists"
+        );
+
+        let user = ShadowUser::new(user_id);
+        repo.insert_shadow_user(&user)
+            .await
+            .expect("Insert should succeed");
+
+        assert!(
+            repo.check_exists(user_id).await,
+            "check_exists should return true after insert"
+        );
+        assert!(
+            repo.exists_shadow_user(user_id).await.expect("Query should succeed"),
+            "exists_shadow_user should return true after insert"
+        );
+
+        cleanup_all_test_data(&pool, user_id).await;
+        pool.close().await;
+    }
+}

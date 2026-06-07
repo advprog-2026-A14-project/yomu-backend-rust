@@ -692,6 +692,30 @@ mod sync_quiz_history_tests {
     }
 
     #[tokio::test]
+    async fn sync_new_user_get_shadow_user_db_error() {
+        let user_id = Uuid::new_v4();
+        let mut mock_repo = MockUserRepo::new();
+
+        mock_repo
+            .expect_exists_shadow_user()
+            .with(mockall::predicate::eq(user_id))
+            .return_once(|_| Ok(true))
+            .once();
+
+        mock_repo
+            .expect_get_shadow_user()
+            .with(mockall::predicate::eq(user_id))
+            .return_once(|_| Err(AppError::InternalServer("Get failed".to_string())))
+            .once();
+
+        let use_case = SyncNewUserUseCase::new(mock_repo);
+        let dto = SyncUserRequestDto { user_id };
+
+        let result = use_case.execute(dto).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
     async fn sync_quiz_history_response_contains_user_id() {
         let user_id = Uuid::new_v4();
         let article_id = Uuid::new_v4();

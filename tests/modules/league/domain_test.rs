@@ -406,3 +406,64 @@ mod scoring_strategy_tests {
         assert_eq!(result, 152, "Diamond should round correctly");
     }
 }
+
+mod league_error_tests {
+    use yomu_backend_rust::modules::league::domain::errors::LeagueError;
+    use yomu_backend_rust::shared::domain::base_error::AppError;
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    #[test]
+    fn from_app_error_bad_request_produces_user_not_in_any_clan() {
+        let app_err = AppError::BadRequest("missing field".to_string());
+        let league_err: LeagueError = app_err.into();
+        assert_eq!(
+            league_err.to_string(),
+            "User not in any clan: missing field"
+        );
+    }
+
+    #[test]
+    fn from_app_error_internal_server_produces_clan_not_found() {
+        let app_err = AppError::InternalServer("db down".to_string());
+        let league_err: LeagueError = app_err.into();
+        assert_eq!(
+            league_err.to_string(),
+            "Clan not found: db down"
+        );
+    }
+
+    #[test]
+    fn from_app_error_unauthorized_produces_user_not_in_any_clan() {
+        let app_err = AppError::Unauthorized("bad token".to_string());
+        let league_err: LeagueError = app_err.into();
+        assert_eq!(
+            league_err.to_string(),
+            "User not in any clan: bad token"
+        );
+    }
+
+    #[test]
+    fn from_app_error_not_found_produces_clan_not_found() {
+        let app_err = AppError::NotFound("missing clan".to_string());
+        let league_err: LeagueError = app_err.into();
+        assert_eq!(
+            league_err.to_string(),
+            "Clan not found: missing clan"
+        );
+    }
+
+    #[test]
+    fn league_error_not_leader_into_response_returns_403() {
+        let error = LeagueError::NotLeader("only leader".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[test]
+    fn league_error_user_not_in_any_clan_into_response_returns_400() {
+        let error = LeagueError::UserNotInAnyClan("no clan".to_string());
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+}

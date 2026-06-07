@@ -683,22 +683,720 @@ async fn get_clan_detail_empty_clan() {
     assert_eq!(dto.members.len(), 0);
 }
 
+// ============================================================
+// Edge Case Tests — Error Propagation & Branch Coverage
+// ============================================================
+
+// --- ApproveJoinRequestUseCase ---
+
 #[tokio::test]
-async fn clan_detail_with_db_error() {
+async fn approve_join_request_repo_error_on_get_request_by_id() {
+    let request_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_repo_error_on_get_clan_by_id() {
+    let request_id = Uuid::new_v4();
     let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_repo_error_on_is_user_in_any_clan() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_repo_error_on_update_status_in_reject_path() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(true));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo
+        .expect_update_request_status()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn approve_join_request_repo_error_on_update_status_in_approve_path() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(false));
+    mock_clan_repo.expect_add_member().never();
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo
+        .expect_update_request_status()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- CreateJoinRequestUseCase ---
+
+#[tokio::test]
+async fn create_join_request_repo_error_on_get_clan_by_id() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn create_join_request_repo_error_on_is_user_in_any_clan() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mock_join_repo = MockClanJoinRequestRepo::new();
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn create_join_request_repo_error_on_create_request() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Ok(false));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_pending_request_by_user()
+        .return_once(|_, _| Ok(None));
+    mock_join_repo
+        .expect_create_request()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- GetClanDetailUseCase ---
+
+#[tokio::test]
+async fn get_clan_detail_repo_error_on_get_active_buffs() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Buff Error Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
 
     let mut mock_repo = MockClanRepositoryRepo::new();
-
     mock_repo
         .expect_get_clan_by_id()
-        .return_once(|_| Err(AppError::InternalServer("DB connection failed".to_string())));
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(|_| Ok(vec![]));
 
-    let use_case = GetClanDetailUseCase::new(mock_repo, MockClanBuffRepo::new());
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_active_buffs()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
 
+    let use_case = GetClanDetailUseCase::new(mock_repo, mock_buff_repo);
     let result = use_case.execute(clan_id).await;
 
     assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
 }
+
+#[tokio::test]
+async fn get_clan_detail_with_mixed_buffs_and_debuffs() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let member_id = Uuid::new_v4();
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Mixed Buff Clan".to_string(),
+        leader_id,
+        ClanTier::Silver,
+        500,
+        chrono::Utc::now(),
+    );
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        member_id,
+        MemberRole::Member,
+        chrono::Utc::now(),
+    )];
+    let buff = ClanBuff::new_productivity_buff(clan_id, expires_at);
+    let debuff = ClanBuff::new_low_accuracy_debuff(clan_id, expires_at);
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(|_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_active_buffs()
+        .return_once(move |_| Ok(vec![buff, debuff]));
+
+    let use_case = GetClanDetailUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_ok());
+    let dto = result.unwrap();
+    assert_eq!(dto.active_buffs.len(), 1);
+    assert_eq!(dto.active_debuffs.len(), 1);
+    assert_eq!(dto.active_buffs[0].name, "Productivity Buff");
+    assert_eq!(dto.active_debuffs[0].name, "Low Accuracy Penalty");
+}
+
+// --- TriggerSeasonEndUseCase ---
+
+#[tokio::test]
+async fn trigger_season_end_repo_error_on_get_season_by_id() {
+    let season_id = Uuid::new_v4();
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn trigger_season_end_repo_error_on_get_season_results() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn trigger_season_end_repo_error_on_update_clan_tier_promote() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let results = vec![(clan_a_id, "Clan A".to_string(), 1, 1000)];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo
+        .expect_update_clan_tier()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn trigger_season_end_repo_error_on_update_clan_tier_demote() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let clan_b_id = Uuid::new_v4();
+    let clan_c_id = Uuid::new_v4();
+    let clan_d_id = Uuid::new_v4();
+    let results: Vec<(Uuid, String, i64, i64)> = vec![
+        (clan_a_id, "Clan A".to_string(), 1, 1000),
+        (clan_b_id, "Clan B".to_string(), 2, 900),
+        (clan_c_id, "Clan C".to_string(), 3, 800),
+        (clan_d_id, "Clan D".to_string(), 4, 200),
+    ];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo
+        .expect_update_clan_tier()
+        .returning(move |clan_id, _| {
+            if clan_id == clan_d_id {
+                Err(AppError::InternalServer("DB error".to_string()))
+            } else {
+                Ok(())
+            }
+        });
+    mock_repo
+        .expect_mark_season_ended()
+        .never();
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn trigger_season_end_repo_error_on_mark_season_ended() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let results = vec![(clan_a_id, "Clan A".to_string(), 1, 1000)];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo
+        .expect_update_clan_tier()
+        .returning(|_, _| Ok(()));
+    mock_repo
+        .expect_mark_season_ended()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn trigger_season_end_overlapping_promotion_demotion() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let clan_b_id = Uuid::new_v4();
+    let clan_c_id = Uuid::new_v4();
+    let clan_d_id = Uuid::new_v4();
+    let results: Vec<(Uuid, String, i64, i64)> = vec![
+        (clan_a_id, "Clan A".to_string(), 1, 1000),
+        (clan_b_id, "Clan B".to_string(), 2, 900),
+        (clan_c_id, "Clan C".to_string(), 3, 800),
+        (clan_d_id, "Clan D".to_string(), 4, 200),
+    ];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    // 3 promotions + 1 actual demotion (clan_d) = 4 calls
+    // clans b,c are in both promote and demote lists but skipped via continue
+    mock_repo.expect_update_clan_tier().returning(|_, _| Ok(()));
+    mock_repo.expect_mark_season_ended().return_once(|_| Ok(()));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_ok());
+    let dto = result.unwrap();
+    assert_eq!(dto.promoted.len(), 3);
+    assert_eq!(dto.demoted.len(), 1);
+}
+
+#[tokio::test]
+async fn trigger_season_end_empty_results() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Silver Season".to_string(),
+        ClanTier::Silver,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(vec![]));
+    mock_repo.expect_mark_season_ended().return_once(|_| Ok(()));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_ok());
+    let dto = result.unwrap();
+    assert_eq!(dto.promoted.len(), 0);
+    assert_eq!(dto.demoted.len(), 0);
+}
+
+// --- RejectJoinRequestUseCase ---
+
+#[tokio::test]
+async fn reject_join_request_repo_error_on_get_request_by_id() {
+    let request_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn reject_join_request_repo_error_on_get_clan_by_id() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let caller_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn reject_join_request_repo_error_on_update_request_status() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo
+        .expect_update_request_status()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
 
 // ============================================================
 // GetUserTierUseCase Tests
@@ -2587,4 +3285,1027 @@ async fn empty_database_get_clan() {
     let result = use_case.execute(random_uuid).await;
 
     assert!(result.is_err());
+}
+
+// ============================================================
+// Additional Error Branch Tests — Error Propagation
+// ============================================================
+
+// --- CreateClanUseCase Error Branches ---
+
+#[tokio::test]
+async fn create_clan_ensure_user_exists_error() {
+    let leader_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Err(AppError::InternalServer("user service unavailable".to_string())));
+
+    let use_case = CreateClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
+    let dto = CreateClanDto {
+        name: "Test Clan".to_string(),
+        leader_id,
+    };
+
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn create_clan_add_member_error() {
+    let leader_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()));
+    mock_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Ok(false));
+    mock_repo.expect_create_clan().return_once(|_| Ok(()));
+    mock_repo
+        .expect_add_member()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = CreateClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
+    let dto = CreateClanDto {
+        name: "Test Clan".to_string(),
+        leader_id,
+    };
+
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn create_clan_add_clan_to_tier_error() {
+    let leader_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()));
+    mock_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Ok(false));
+    mock_repo.expect_create_clan().return_once(|_| Ok(()));
+    mock_repo.expect_add_member().return_once(|_| Ok(()));
+
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_add_clan_to_tier()
+        .return_once(|_, _| Err(AppError::InternalServer("cache error".to_string())));
+
+    let use_case = CreateClanUseCase::new(mock_repo, mock_leaderboard);
+    let dto = CreateClanDto {
+        name: "Test Clan".to_string(),
+        leader_id,
+    };
+
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn create_clan_is_user_in_any_clan_error() {
+    let leader_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_ensure_user_exists()
+        .return_once(|_| Ok(()));
+    mock_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = CreateClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
+    let dto = CreateClanDto {
+        name: "Test Clan".to_string(),
+        leader_id,
+    };
+
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- CreateJoinRequestUseCase Error Branches ---
+
+#[tokio::test]
+async fn create_join_request_repo_error_on_get_pending_request_by_user() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Ok(false));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_pending_request_by_user()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = CreateJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = CreateJoinRequestDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- DeleteClanUseCase Error Branches ---
+
+#[tokio::test]
+async fn delete_clan_repo_error_on_get_clan_by_id() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = DeleteClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
+    let dto = DeleteClanDto { caller_id: leader_id };
+
+    let result = use_case.execute(clan_id, dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn delete_clan_repo_error_on_delete_clan() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "DeleteMe".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_delete_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = DeleteClanUseCase::new(mock_repo, MockLeaderboardCacheRepo::new());
+    let dto = DeleteClanDto { caller_id: leader_id };
+
+    let result = use_case.execute(clan_id, dto).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- GetClanDetailUseCase Error Branches ---
+
+#[tokio::test]
+async fn get_clan_detail_repo_error_on_get_members_by_clan_id() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mock_buff_repo = MockClanBuffRepo::new();
+
+    let use_case = GetClanDetailUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn get_clan_detail_repo_error_on_get_clan_by_id() {
+    let clan_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetClanDetailUseCase::new(mock_repo, MockClanBuffRepo::new());
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- GetPendingRequestsUseCase Error Branches ---
+
+#[tokio::test]
+async fn get_pending_requests_repo_error_on_get_pending_requests_by_clan() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_pending_requests_by_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, mock_join_repo);
+    let result = use_case.execute(clan_id, leader_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+#[tokio::test]
+async fn get_pending_requests_repo_error_on_get_clan_by_id() {
+    let clan_id = Uuid::new_v4();
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetPendingRequestsUseCase::new(mock_clan_repo, MockClanJoinRequestRepo::new());
+    let result = use_case.execute(clan_id, Uuid::new_v4()).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- ProcessBuffsUseCase Error Branches ---
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_get_members() {
+    let clan_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, MockClanBuffRepo::new());
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_get_avg_accuracy() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_avg_accuracy_for_members()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_get_mission_completion_rate() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_avg_accuracy_for_members()
+        .return_once(|_| Ok(0.5));
+    mock_buff_repo
+        .expect_get_mission_completion_rate_for_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_get_buff_by_name() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_avg_accuracy_for_members()
+        .return_once(|_| Ok(0.7));
+    mock_buff_repo
+        .expect_get_mission_completion_rate_for_clan()
+        .return_once(|_| Ok(0.6));
+    mock_buff_repo
+        .expect_get_buff_by_name()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_activate_buff() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_avg_accuracy_for_members()
+        .return_once(|_| Ok(0.7));
+    mock_buff_repo
+        .expect_get_mission_completion_rate_for_clan()
+        .return_once(|_| Ok(0.6));
+    mock_buff_repo
+        .expect_get_buff_by_name()
+        .returning(|_, _| Ok(None));
+    mock_buff_repo
+        .expect_activate_buff()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn process_buffs_repo_error_on_deactivate_buff_by_name() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_avg_accuracy_for_members()
+        .return_once(|_| Ok(0.8));
+    mock_buff_repo
+        .expect_get_mission_completion_rate_for_clan()
+        .return_once(|_| Ok(0.3));
+    mock_buff_repo
+        .expect_get_buff_by_name()
+        .returning(move |_, name| {
+            if name == "Productivity Buff" {
+                Ok(Some(ClanBuff::new_productivity_buff(clan_id, expires_at)))
+            } else {
+                Ok(None)
+            }
+        });
+    mock_buff_repo
+        .expect_deactivate_buff_by_name()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = ProcessBuffsUseCase::new(mock_repo, mock_buff_repo);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- RejectJoinRequestUseCase Error Branches ---
+
+#[tokio::test]
+async fn reject_join_request_already_rejected() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Rejected,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+
+    let use_case = RejectJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto {
+        caller_id: Uuid::new_v4(),
+    };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        LeagueError::RequestAlreadyProcessed(_)
+    ));
+}
+
+// --- GetLeaderboardUseCase Error Branches ---
+
+#[tokio::test]
+async fn get_leaderboard_repo_error_on_get_top_clans() {
+    let tier = "Diamond".to_string();
+
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_get_top_clans()
+        .return_once(|_, _| Err(AppError::InternalServer("cache error".to_string())));
+
+    let mock_clan_repo = MockClanRepositoryRepo::new();
+
+    let use_case = GetLeaderboardUseCase::new(mock_clan_repo, mock_leaderboard);
+    let result = use_case.execute(tier).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn get_leaderboard_repo_error_on_get_leaders_by_clan_ids() {
+    let tier = "Diamond".to_string();
+    let clan_id = Uuid::new_v4();
+    let entries = vec![LeaderboardEntry {
+        clan_id,
+        clan_name: "Clan A".to_string(),
+        leader_id: Uuid::nil(),
+        total_score: 1000,
+        tier: tier.clone(),
+        rank: 1,
+    }];
+
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_get_top_clans()
+        .return_once(move |_, _| Ok(entries));
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_leaders_by_clan_ids()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetLeaderboardUseCase::new(mock_clan_repo, mock_leaderboard);
+    let result = use_case.execute(tier).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn get_leaderboard_repo_error_on_get_clan_names_by_ids() {
+    let tier = "Diamond".to_string();
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let entries = vec![LeaderboardEntry {
+        clan_id,
+        clan_name: "Clan A".to_string(),
+        leader_id: Uuid::nil(),
+        total_score: 1000,
+        tier: tier.clone(),
+        rank: 1,
+    }];
+
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_get_top_clans()
+        .return_once(move |_, _| Ok(entries));
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_leaders_by_clan_ids()
+        .return_once(move |ids| {
+            let mut map = std::collections::HashMap::new();
+            if ids.contains(&clan_id) {
+                map.insert(clan_id, leader_id);
+            }
+            Ok(map)
+        });
+    mock_clan_repo
+        .expect_get_clan_names_by_ids()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetLeaderboardUseCase::new(mock_clan_repo, mock_leaderboard);
+    let result = use_case.execute(tier).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- UpdateScoreWithBuffsUseCase Error Branches ---
+
+#[tokio::test]
+async fn update_score_with_buffs_repo_error_on_get_members() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = UpdateScoreWithBuffsUseCase::new(
+        mock_repo,
+        MockClanBuffRepo::new(),
+        MockLeaderboardCacheRepo::new(),
+    );
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn update_score_with_buffs_repo_error_on_get_active_buffs() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_active_buffs()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = UpdateScoreWithBuffsUseCase::new(
+        mock_repo,
+        mock_buff_repo,
+        MockLeaderboardCacheRepo::new(),
+    );
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn update_score_with_buffs_repo_error_on_add_score() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+    mock_repo
+        .expect_add_score()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_active_buffs()
+        .return_once(|_| Ok(vec![]));
+    mock_buff_repo
+        .expect_get_avg_quiz_score_for_members()
+        .return_once(|_| Ok(50));
+
+    let use_case = UpdateScoreWithBuffsUseCase::new(
+        mock_repo,
+        mock_buff_repo,
+        MockLeaderboardCacheRepo::new(),
+    );
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn update_score_with_buffs_repo_error_on_update_clan_score() {
+    let clan_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let members = vec![ClanMember::with_joined_at(
+        clan_id,
+        leader_id,
+        MemberRole::Leader,
+        chrono::Utc::now(),
+    )];
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_get_members_by_clan_id()
+        .return_once(move |_| Ok(members));
+    mock_repo.expect_add_score().return_once(|_, _| Ok(()));
+
+    let mut mock_buff_repo = MockClanBuffRepo::new();
+    mock_buff_repo
+        .expect_get_active_buffs()
+        .return_once(|_| Ok(vec![]));
+    mock_buff_repo
+        .expect_get_avg_quiz_score_for_members()
+        .return_once(|_| Ok(50));
+
+    let mut mock_leaderboard = MockLeaderboardCacheRepo::new();
+    mock_leaderboard
+        .expect_update_clan_score()
+        .return_once(|_, _| Err(AppError::InternalServer("cache error".to_string())));
+
+    let use_case = UpdateScoreWithBuffsUseCase::new(mock_repo, mock_buff_repo, mock_leaderboard);
+    let result = use_case.execute(clan_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- TriggerSeasonEndUseCase Additional Error Branches ---
+
+#[tokio::test]
+async fn trigger_season_end_bronze_season_with_results() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Bronze Season".to_string(),
+        ClanTier::Bronze,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let results = vec![(clan_a_id, "Clan A".to_string(), 1, 100)];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo.expect_update_clan_tier().returning(|_, _| Ok(()));
+    mock_repo.expect_mark_season_ended().return_once(|_| Ok(()));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_ok());
+    let dto = result.unwrap();
+    assert_eq!(dto.promoted.len(), 1);
+    assert_eq!(dto.demoted.len(), 0);
+}
+
+#[tokio::test]
+async fn trigger_season_end_diamond_season_with_results() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Diamond Season".to_string(),
+        ClanTier::Diamond,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let clan_b_id = Uuid::new_v4();
+    let clan_c_id = Uuid::new_v4();
+    let results: Vec<(Uuid, String, i64, i64)> = vec![
+        (clan_a_id, "Clan A".to_string(), 1, 5000),
+        (clan_b_id, "Clan B".to_string(), 2, 3000),
+        (clan_c_id, "Clan C".to_string(), 3, 500),
+    ];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo.expect_update_clan_tier().returning(|_, _| Ok(()));
+    mock_repo.expect_mark_season_ended().return_once(|_| Ok(()));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_ok());
+    let dto = result.unwrap();
+    assert_eq!(dto.promoted.len(), 0);
+    assert_eq!(dto.demoted.len(), 3);
+}
+
+#[tokio::test]
+async fn trigger_season_end_bronze_promotion_error() {
+    let season_id = Uuid::new_v4();
+    let season = Season::with_id(
+        season_id,
+        "Bronze Season".to_string(),
+        ClanTier::Bronze,
+        chrono::Utc::now() - chrono::Duration::days(30),
+        chrono::Utc::now() + chrono::Duration::days(1),
+        true,
+    );
+    let clan_a_id = Uuid::new_v4();
+    let results = vec![(clan_a_id, "Clan A".to_string(), 1, 100)];
+
+    let mut mock_repo = MockSeasonRepo::new();
+    mock_repo
+        .expect_get_season_by_id()
+        .return_once(move |_| Ok(Some(season)));
+    mock_repo
+        .expect_get_season_results()
+        .return_once(move |_, _| Ok(results));
+    mock_repo
+        .expect_update_clan_tier()
+        .return_once(|_, _| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = TriggerSeasonEndUseCase::new(mock_repo);
+    let result: Result<SeasonResultDto, AppError> = use_case.execute(season_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- GetUserTierUseCase Error Branches ---
+
+#[tokio::test]
+async fn get_user_tier_repo_error() {
+    let user_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_user_tier_info()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = GetUserTierUseCase::new(mock_repo);
+    let result: Result<UserTierDto, AppError> = use_case.execute(user_id).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+// --- ApproveJoinRequestUseCase Additional Error Branches ---
+
+#[tokio::test]
+async fn approve_join_request_add_member_error_propagation() {
+    let request_id = Uuid::new_v4();
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+    let request = ClanJoinRequest::with_id(
+        request_id,
+        clan_id,
+        user_id,
+        RequestStatus::Pending,
+        chrono::Utc::now(),
+        chrono::Utc::now(),
+    );
+
+    let mut mock_clan_repo = MockClanRepositoryRepo::new();
+    mock_clan_repo
+        .expect_get_clan_by_id()
+        .with(mockall::predicate::eq(clan_id))
+        .return_once(|_| Ok(Some(clan)));
+    mock_clan_repo
+        .expect_is_user_in_any_clan()
+        .with(mockall::predicate::eq(user_id))
+        .return_once(|_| Ok(false));
+    mock_clan_repo
+        .expect_add_member()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let mut mock_join_repo = MockClanJoinRequestRepo::new();
+    mock_join_repo
+        .expect_get_request_by_id()
+        .with(mockall::predicate::eq(request_id))
+        .return_once(|_| Ok(Some(request)));
+    mock_join_repo
+        .expect_update_request_status()
+        .return_once(|_, _| Ok(()));
+
+    let use_case = ApproveJoinRequestUseCase::new(mock_clan_repo, mock_join_repo);
+    let dto = ApproveRejectDto { caller_id: leader_id };
+    let result = use_case.execute(request_id, dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), LeagueError::ClanNotFound(_)));
+}
+
+// --- JoinClanUseCase Error Branches ---
+
+#[tokio::test]
+async fn join_clan_repo_error_on_get_clan_by_id() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = JoinClanUseCase::new(mock_repo);
+    let dto = JoinClanDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
+}
+
+#[tokio::test]
+async fn join_clan_repo_error_on_is_user_in_any_clan() {
+    let clan_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let leader_id = Uuid::new_v4();
+
+    let clan = Clan::with_id(
+        clan_id,
+        "Test Clan".to_string(),
+        leader_id,
+        ClanTier::Bronze,
+        0,
+        chrono::Utc::now(),
+    );
+
+    let mut mock_repo = MockClanRepositoryRepo::new();
+    mock_repo
+        .expect_get_clan_by_id()
+        .return_once(|_| Ok(Some(clan)));
+    mock_repo
+        .expect_is_user_in_any_clan()
+        .return_once(|_| Err(AppError::InternalServer("DB error".to_string())));
+
+    let use_case = JoinClanUseCase::new(mock_repo);
+    let dto = JoinClanDto { clan_id, user_id };
+    let result = use_case.execute(dto).await;
+
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), AppError::InternalServer(_)));
 }

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use mockall::mock;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -7,6 +7,13 @@ use uuid::Uuid;
 use yomu_backend_rust::modules::gamification::application::ClaimMissionRewardUseCase;
 use yomu_backend_rust::modules::gamification::application::SyncQuizGamificationUseCase;
 use yomu_backend_rust::modules::gamification::application::SyncQuizHistoryRequestDto;
+use yomu_backend_rust::modules::gamification::application::use_cases::{
+    CreateAchievementUseCase, CreateDailyMissionUseCase, DeleteDailyMissionUseCase,
+    GetDailyMissionsUseCase, GetUserAchievementsUseCase, UpdateDailyMissionUseCase,
+};
+use yomu_backend_rust::modules::gamification::application::dto::{
+    CreateAchievementRequestDto, DailyMissionAdminRequestDto,
+};
 use yomu_backend_rust::modules::gamification::domain::entities::achievement::{
     Achievement, AchievementTriggerType, AchievementType,
 };
@@ -361,4 +368,530 @@ async fn sync_quiz_new_achievement_auto_enrolled_and_completed() {
         SyncQuizGamificationUseCase::new(Arc::new(mission_repo), Arc::new(achievement_repo));
 
     assert!(use_case.execute(make_sync_payload(user_id)).await.is_ok());
+}
+
+// ─── CreateAchievementUseCase ────────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_achievement_success() {
+    let dto = CreateAchievementRequestDto {
+        name: "New Achievement".to_string(),
+        milestone_target: 10,
+        achievement_type: "Rare".to_string(),
+        trigger_type: "QuizComplete".to_string(),
+        reward_points: 100,
+    };
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo.expect_create_achievement().return_once(|_| Ok(()));
+    let use_case = CreateAchievementUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.name, "New Achievement");
+    assert_eq!(resp.milestone_target, 10);
+    assert_eq!(resp.achievement_type, "Rare");
+    assert_eq!(resp.trigger_type, "QuizComplete");
+    assert_eq!(resp.reward_points, 100);
+}
+
+#[tokio::test]
+async fn create_achievement_invalid_trigger_type() {
+    let dto = CreateAchievementRequestDto {
+        name: "Bad Trigger".to_string(),
+        milestone_target: 5,
+        achievement_type: "Common".to_string(),
+        trigger_type: "InvalidTrigger".to_string(),
+        reward_points: 50,
+    };
+    let mock_repo = MockAchievementRepo::new();
+    let use_case = CreateAchievementUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("Tipe trigger achievement tidak valid"));
+}
+
+#[tokio::test]
+async fn create_achievement_repo_error() {
+    let dto = CreateAchievementRequestDto {
+        name: "Repo Fail".to_string(),
+        milestone_target: 3,
+        achievement_type: "Common".to_string(),
+        trigger_type: "ReadArticle".to_string(),
+        reward_points: 20,
+    };
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo
+        .expect_create_achievement()
+        .return_once(|_| Err("db error".to_string()));
+    let use_case = CreateAchievementUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+}
+
+// ─── CreateDailyMissionUseCase ───────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_daily_mission_success() {
+    let dto = DailyMissionAdminRequestDto {
+        description: "Read 5 articles".to_string(),
+        target_count: 5,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 50,
+        mission_type: "ReadArticle".to_string(),
+    };
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo.expect_create_daily_mission().return_once(|_| Ok(()));
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.description, "Read 5 articles");
+    assert_eq!(resp.target_count, 5);
+    assert_eq!(resp.reward_points, 50);
+    assert_eq!(resp.mission_type, "ReadArticle");
+    assert_eq!(resp.current_progress, 0);
+    assert!(!resp.is_claimed);
+}
+
+#[tokio::test]
+async fn create_daily_mission_invalid_mission_type() {
+    let dto = DailyMissionAdminRequestDto {
+        description: "Invalid".to_string(),
+        target_count: 1,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 10,
+        mission_type: "BadType".to_string(),
+    };
+    let mock_repo = MockMissionRepo::new();
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("Tipe misi harian tidak valid"));
+}
+
+// ─── DeleteDailyMissionUseCase ───────────────────────────────────────────────
+
+#[tokio::test]
+async fn delete_daily_mission_success() {
+    let mission_id = Uuid::new_v4();
+    let mission = DailyMission::new(
+        mission_id,
+        "Test Mission".to_string(),
+        1,
+        NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        10,
+        MissionType::Quiz,
+    )
+    .unwrap();
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(move |_| Ok(Some(mission)));
+    mock_repo
+        .expect_delete_daily_mission()
+        .return_once(|_| Ok(()));
+    let use_case = DeleteDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id).await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn delete_daily_mission_not_found() {
+    let mission_id = Uuid::new_v4();
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(|_| Ok(None));
+    let use_case = DeleteDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("tidak ditemukan"));
+}
+
+// ─── GetDailyMissionsUseCase ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn get_daily_missions_empty() {
+    let user_id = Uuid::new_v4();
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_active_missions_by_date()
+        .return_once(|_| Ok(vec![]));
+    let use_case = GetDailyMissionsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id).await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().missions.is_empty());
+}
+
+#[tokio::test]
+async fn get_daily_missions_with_progress() {
+    let user_id = Uuid::new_v4();
+    let mission_id = Uuid::new_v4();
+    let mission = DailyMission::new(
+        mission_id,
+        "Quiz Mission".to_string(),
+        3,
+        NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        20,
+        MissionType::Quiz,
+    )
+    .unwrap();
+    let mut user_mission = UserMission::new(user_id, mission_id);
+    user_mission.add_progress(2, 3);
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_active_missions_by_date()
+        .return_once(move |_| Ok(vec![mission]));
+    mock_repo
+        .expect_get_user_missions_batch()
+        .return_once(move |_, _| Ok(vec![user_mission]));
+    let use_case = GetDailyMissionsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id).await;
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.missions.len(), 1);
+    let item = &resp.missions[0];
+    assert_eq!(item.mission_id, mission_id);
+    assert_eq!(item.current_progress, 2);
+    assert!(!item.is_claimed);
+    assert_eq!(item.mission_type, "Quiz");
+}
+
+// ─── GetUserAchievementsUseCase ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn get_user_achievements_empty() {
+    let user_id = Uuid::new_v4();
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo
+        .expect_get_user_achievements()
+        .return_once(|_| Ok(vec![]));
+    let use_case = GetUserAchievementsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id, false).await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().achievements.is_empty());
+}
+
+#[tokio::test]
+async fn get_user_achievements_hidden_filtered() {
+    let user_id = Uuid::new_v4();
+    let achievement_id = Uuid::new_v4();
+    let mut ua = UserAchievement::new(user_id, achievement_id);
+    ua.add_progress(1, 1, Utc::now());
+    let _ = ua.set_shown_on_profile(false);
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo
+        .expect_get_user_achievements()
+        .return_once(move |_| Ok(vec![ua]));
+    let use_case = GetUserAchievementsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id, false).await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().achievements.is_empty());
+}
+
+#[tokio::test]
+async fn get_user_achievements_visible_only() {
+    let user_id = Uuid::new_v4();
+    let achievement_id = Uuid::new_v4();
+    let mut ua = UserAchievement::new(user_id, achievement_id);
+    ua.add_progress(1, 1, Utc::now());
+    let _ = ua.set_shown_on_profile(true);
+    let master = Achievement::new(
+        achievement_id,
+        "Master Achievement".to_string(),
+        1,
+        AchievementType::Common,
+        AchievementTriggerType::QuizComplete,
+        50,
+    )
+    .unwrap();
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo
+        .expect_get_user_achievements()
+        .return_once(move |_| Ok(vec![ua]));
+    mock_repo
+        .expect_get_achievements_by_ids()
+        .return_once(move |_| Ok(vec![master]));
+    let use_case = GetUserAchievementsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id, true).await;
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.achievements.len(), 1);
+    assert_eq!(resp.achievements[0].name, "Master Achievement");
+}
+
+// ─── UpdateDailyMissionUseCase ───────────────────────────────────────────────
+
+#[tokio::test]
+async fn update_daily_mission_success() {
+    let mission_id = Uuid::new_v4();
+    let existing = DailyMission::new(
+        mission_id,
+        "Old Description".to_string(),
+        1,
+        NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        10,
+        MissionType::Quiz,
+    )
+    .unwrap();
+    let dto = DailyMissionAdminRequestDto {
+        description: "New Description".to_string(),
+        target_count: 5,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 20,
+        mission_type: "ReadArticle".to_string(),
+    };
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(move |_| Ok(Some(existing)));
+    mock_repo
+        .expect_update_daily_mission()
+        .return_once(|_| Ok(()));
+    let use_case = UpdateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id, dto).await;
+    assert!(result.is_ok());
+    let resp = result.unwrap();
+    assert_eq!(resp.description, "New Description");
+    assert_eq!(resp.target_count, 5);
+    assert_eq!(resp.reward_points, 20);
+    assert_eq!(resp.mission_type, "ReadArticle");
+}
+
+#[tokio::test]
+async fn update_daily_mission_not_found() {
+    let mission_id = Uuid::new_v4();
+    let dto = DailyMissionAdminRequestDto {
+        description: "New Description".to_string(),
+        target_count: 5,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 20,
+        mission_type: "ReadArticle".to_string(),
+    };
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(|_| Ok(None));
+    let use_case = UpdateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id, dto).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("tidak ditemukan"));
+}
+
+#[tokio::test]
+async fn update_daily_mission_invalid_mission_type() {
+    let mission_id = Uuid::new_v4();
+    let existing = DailyMission::new(
+        mission_id,
+        "Old Description".to_string(),
+        1,
+        NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        10,
+        MissionType::Quiz,
+    )
+    .unwrap();
+    let dto = DailyMissionAdminRequestDto {
+        description: "Updated".to_string(),
+        target_count: 5,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 20,
+        mission_type: "InvalidType".to_string(),
+    };
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(move |_| Ok(Some(existing)));
+    let use_case = UpdateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id, dto).await;
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("Tipe misi harian tidak valid"));
+}
+
+#[tokio::test]
+async fn update_daily_mission_repo_error() {
+    let mission_id = Uuid::new_v4();
+    let existing = DailyMission::new(
+        mission_id,
+        "Old Description".to_string(),
+        1,
+        NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        10,
+        MissionType::Quiz,
+    )
+    .unwrap();
+    let dto = DailyMissionAdminRequestDto {
+        description: "Updated".to_string(),
+        target_count: 5,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 20,
+        mission_type: "ReadArticle".to_string(),
+    };
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(move |_| Ok(Some(existing)));
+    mock_repo
+        .expect_update_daily_mission()
+        .return_once(|_| Err("db error".to_string()));
+    let use_case = UpdateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id, dto).await;
+    assert!(result.is_err());
+}
+
+// ─── Mission Type Variant Tests ─────────────────────────────────────────────
+
+#[tokio::test]
+async fn create_daily_mission_quiz_type() {
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo.expect_create_daily_mission().return_once(|_| Ok(()));
+    let dto = DailyMissionAdminRequestDto {
+        description: "Quiz mission".to_string(),
+        target_count: 3,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 30,
+        mission_type: "Quiz".to_string(),
+    };
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().mission_type, "Quiz");
+}
+
+#[tokio::test]
+async fn create_daily_mission_daily_login_type() {
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo.expect_create_daily_mission().return_once(|_| Ok(()));
+    let dto = DailyMissionAdminRequestDto {
+        description: "Login mission".to_string(),
+        target_count: 1,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 10,
+        mission_type: "DailyLogin".to_string(),
+    };
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().mission_type, "DailyLogin");
+}
+
+#[tokio::test]
+async fn create_daily_mission_lowercase_mission_type() {
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo.expect_create_daily_mission().return_once(|_| Ok(()));
+    let dto = DailyMissionAdminRequestDto {
+        description: "Read mission".to_string(),
+        target_count: 2,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 15,
+        mission_type: "read_article".to_string(),
+    };
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().mission_type, "ReadArticle");
+}
+
+#[tokio::test]
+async fn create_daily_mission_uppercase_mission_type() {
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo.expect_create_daily_mission().return_once(|_| Ok(()));
+    let dto = DailyMissionAdminRequestDto {
+        description: "Read mission".to_string(),
+        target_count: 2,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 15,
+        mission_type: "READ_ARTICLE".to_string(),
+    };
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().mission_type, "ReadArticle");
+}
+
+#[tokio::test]
+async fn create_daily_mission_repo_error() {
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_create_daily_mission()
+        .return_once(|_| Err("db error".to_string()));
+    let dto = DailyMissionAdminRequestDto {
+        description: "Fail mission".to_string(),
+        target_count: 1,
+        date: NaiveDate::from_ymd_opt(2026, 6, 7).unwrap(),
+        reward_points: 10,
+        mission_type: "Quiz".to_string(),
+    };
+    let use_case = CreateDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn delete_daily_mission_repo_error() {
+    let mission_id = Uuid::new_v4();
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_daily_mission_by_id()
+        .return_once(|_| Err("db error".to_string()));
+    let use_case = DeleteDailyMissionUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(mission_id).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_daily_missions_repo_error() {
+    let user_id = Uuid::new_v4();
+    let mut mock_repo = MockMissionRepo::new();
+    mock_repo
+        .expect_get_active_missions_by_date()
+        .return_once(|_| Err("db error".to_string()));
+    let use_case = GetDailyMissionsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn get_user_achievements_repo_error() {
+    let user_id = Uuid::new_v4();
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo
+        .expect_get_user_achievements()
+        .return_once(|_| Err("db error".to_string()));
+    let use_case = GetUserAchievementsUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(user_id, false).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn create_achievement_with_read_article_trigger() {
+    let dto = CreateAchievementRequestDto {
+        name: "Read 10 Articles".to_string(),
+        milestone_target: 10,
+        achievement_type: "Common".to_string(),
+        trigger_type: "ReadArticle".to_string(),
+        reward_points: 50,
+    };
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo.expect_create_achievement().return_once(|_| Ok(()));
+    let use_case = CreateAchievementUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().trigger_type, "ReadArticle");
+}
+
+#[tokio::test]
+async fn create_achievement_with_daily_login_trigger() {
+    let dto = CreateAchievementRequestDto {
+        name: "Daily Login".to_string(),
+        milestone_target: 1,
+        achievement_type: "Common".to_string(),
+        trigger_type: "DailyLogin".to_string(),
+        reward_points: 10,
+    };
+    let mut mock_repo = MockAchievementRepo::new();
+    mock_repo.expect_create_achievement().return_once(|_| Ok(()));
+    let use_case = CreateAchievementUseCase::new(Arc::new(mock_repo));
+    let result = use_case.execute(dto).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().trigger_type, "DailyLogin");
 }
