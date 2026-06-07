@@ -1145,10 +1145,6 @@ mod clan_join_request_pg_tests {
             .execute(pool)
             .await
             .expect("Failed to delete users");
-        sqlx::query("DROP TABLE IF EXISTS clan_join_requests")
-            .execute(pool)
-            .await
-            .ok();
     }
 
     #[tokio::test]
